@@ -464,21 +464,38 @@ function renderDashboard() {
 }
 // ========== RECIPE CARD ==========
 function recipeCardHTML(r) {
-  const cost = calcRecipeCost(r);
-  const ratio = r.price ? calcCostRatio(cost,r.price) : null;
-  return `<div class="recipe-card" onclick="viewRecipe('${r.id}')">
-    <div class="recipe-card-img">
-      ${r.photo?`<img src="${r.photo}" alt="">`:'🍽️'}
-      <button class="recipe-card-fav" onclick="event.stopPropagation();toggleFav('${r.id}')">${r.favorite?'❤️':'🤍'}</button>
-    </div>
-    <div class="recipe-card-body">
-      <div class="recipe-card-category">${r.category||''} ${r.coursePosition||''}</div>
-      <div class="recipe-card-name">${r.name}</div>
-      <div class="recipe-card-meta"><span>🍴 ${r.servings||1}人分</span>${r.tags&&r.tags.length?`<span>🏷 ${r.tags.slice(0,2).join(', ')}</span>`:''}</div>
-      ${r.allergens&&r.allergens.length?`<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px">${r.allergens.slice(0,6).map(id=>{const a=ALLERGENS.find(x=>x.id===id);return a?`<span style="font-size:13px" title="${a.label}">${a.emoji}</span>`:''}).join('')}${r.allergens.length>6?`<span style="font-size:10px;color:var(--text-muted)">+${r.allergens.length-6}</span>`:''}</div>`:''}
-      ${cost>0?`<div class="recipe-card-cost"><span class="cost-badge">原価 ${formatYen(cost)}</span>${ratio?`<span class="${costRatioClass(ratio)}">${ratio}%</span>`:''}</div>`:''}
-    </div>
-  </div>`;
+  var cost = calcRecipeCost(r);
+  var ratio = r.price ? calcCostRatio(cost,r.price) : null;
+  var allergenHtml = '';
+  if(r.allergens && r.allergens.length){
+    allergenHtml = '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px">'
+      + r.allergens.slice(0,6).map(function(id){
+          var a=ALLERGENS.find(function(x){return x.id===id;});
+          return a ? '<span style="font-size:13px" title="'+a.label+'">'+a.emoji+'</span>' : '';
+        }).join('')
+      + (r.allergens.length>6 ? '<span style="font-size:10px;color:var(--text-muted)">+' + (r.allergens.length-6) + '</span>' : '')
+      + '</div>';
+  }
+  var costHtml = '';
+  if(cost>0){
+    costHtml = '<div class="recipe-card-cost"><span class="cost-badge">原価 '+formatYen(cost)+'</span>'
+      + (ratio ? '<span class="'+costRatioClass(ratio)+'">'+ratio+'%</span>' : '')
+      + '</div>';
+  }
+  var tagHtml = (r.tags&&r.tags.length) ? '<span>🏷 '+r.tags.slice(0,2).join(', ')+'</span>' : '';
+  var photoHtml = r.photo ? '<img src="'+r.photo+'" alt="">' : '🍽️';
+  return '<div class="recipe-card" onclick="viewRecipe(\''+r.id+'\')">'
+    + '<div class="recipe-card-img">'
+    + photoHtml
+    + '<button class="recipe-card-fav" onclick="event.stopPropagation();toggleFav(\''+r.id+'\')">'+(r.favorite?'❤️':'🤍')+'</button>'
+    + '</div>'
+    + '<div class="recipe-card-body">'
+    + '<div class="recipe-card-category">'+(r.category||'')+' '+(r.coursePosition||'')+'</div>'
+    + '<div class="recipe-card-name">'+r.name+'</div>'
+    + '<div class="recipe-card-meta"><span>🍴 '+(r.servings||1)+'人分</span>'+tagHtml+'</div>'
+    + allergenHtml
+    + costHtml
+    + '</div></div>';
 }
 
 async function toggleFav(id) {
@@ -555,118 +572,59 @@ function renderFavorites() {
 
 // ========== RECIPE DETAIL ==========
 function viewRecipe(id) {
-  const r = DB.recipes.find(r=>r.id===id);
-  if (!r) return;
-  const cost = calcRecipeCost(r);
-  const ingRows = (r.ingredients||[]).map(ri=>{
-    const ing = DB.ingredients.find(i=>i.id===ri.ingredientId);
-    const c = ing?(parseFloat(ing.unitPrice)*parseFloat(ri.amount||0)):0;
-    return `<tr><td>${ing?ing.name:'不明'}</td><td class="td-num">${ri.amount} ${ri.unit||(ing?ing.unit:'')}</td><td class="td-num">${ing?formatYen(c):'-'}</td></tr>`;
-  }).join('');
-  const steps = (r.steps||[]).map((s,i)=>`<div class="step-row"><div class="step-num">${i+1}</div><div style="flex:1;padding-top:4px;line-height:1.7;font-size:13px">${s}</div></div>`).join('');
-  openModal(`
-    <div class="modal-header">
-      <div class="modal-title">${r.name}</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn btn-secondary btn-sm no-print" onclick="printRecipe('${r.id}')">🖨 印刷</button>
-        <button class="btn btn-primary btn-sm no-print" onclick="closeModal();openRecipeForm('${r.id}')">✏️ 編集</button>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-    </div>
-    <div class="modal-body">
-      ${r.photo?`<div style="width:100%;height:200px;border-radius:10px;overflow:hidden;margin-bottom:16px"><img src="${r.photo}" style="width:100%;height:100%;object-fit:cover"></div>`:''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-        ${r.category?`<span class="tag">${r.category}</span>`:''}
-        ${r.coursePosition?`<span class="tag">📍 ${r.coursePosition}</span>`:''}
-        <span class="tag">🍴 ${r.servings||1}人分</span>
-        ${(r.tags||[]).map(t=>`<span class="tag">🏷 ${t}</span>`).join('')}
-      </div>
-      ${r.description?`<p style="color:var(--text-light);margin-bottom:16px;line-height:1.7">${r.description}</p>`:''}
-      <div class="stat-card stat-accent" style="margin-bottom:16px"><div class="stat-label">コスト</div><div class="stat-value">${formatYen(cost)}</div></div>
-      ${ingRows?`<h3 style="font-family:'Cormorant Garamond',serif;font-size:16px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">材料 (${r.servings||1}人分)</h3>
-      <div class="table-wrap" style="margin-bottom:16px"><table><thead><tr><th>食材</th><th>量</th><th>原価</th></tr></thead><tbody>${ingRows}</tbody><tfoot><tr><td colspan="2" style="text-align:right;font-size:12px;color:var(--text-muted)">合計</td><td class="td-num" style="font-weight:600">${formatYen(cost)}</td></tr></tfoot></table></div>`:''}
-      ${steps?`<h3 style="font-family:'Cormorant Garamond',serif;font-size:16px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">手順</h3>${steps}`:''}
-      ${r.notes?`<div style="background:var(--bg2);border-radius:8px;padding:12px;margin-top:14px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">調理メモ</div><div style="line-height:1.7;font-size:13px">${r.notes}</div></div>`:''}
-      ${r.allergens&&r.allergens.length?`
-        <div style="margin-top:16px;padding:14px;background:#fff8f0;border:1px solid #f0d0a0;border-radius:10px">
-          <div style="font-size:11px;font-weight:600;color:#a05000;letter-spacing:.08em;margin-bottom:10px">⚠️ アレルゲン情報</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${r.allergens.map(id=>{const a=ALLERGENS.find(x=>x.id===id);return a?`<span style="display:inline-flex;align-items:center;gap:4px;background:white;border:1px solid #f0d0a0;border-radius:16px;padding:4px 10px;font-size:12px">${a.emoji} ${a.label}</span>`:''}).join('')}
-          </div>
-        </div>`:''}
-    </div>`);
-}
-
-function printRecipe(id) {
   var r = DB.recipes.find(function(x){return x.id===id;});
   if (!r) return;
   var cost = calcRecipeCost(r);
-  var ingRows = '';
-  if(r.ingredients && r.ingredients.length){
-    ingRows = r.ingredients.map(function(ri){
-      var ing = DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
-      return '<tr><td>'+(ing?ing.name:'?')+'</td><td>'+ri.amount+' '+(ri.unit||(ing?ing.unit:''))+'</td></tr>';
-    }).join('');
-  }
-  var stepRows = '';
-  if(r.steps && r.steps.length){
-    stepRows = r.steps.map(function(s,i){
-      return '<div class="step"><div class="num">'+(i+1)+'</div><div style="flex:1;line-height:1.7">'+s+'</div></div>';
-    }).join('');
-  }
-  var allergenRow = '';
+  var ingRows = (r.ingredients||[]).map(function(ri){
+    var ing = DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
+    var c = ing ? (parseFloat(ing.unitPrice)*parseFloat(ri.amount||0)) : 0;
+    return '<tr><td>'+(ing?ing.name:'不明')+'</td>'
+      +'<td class="td-num">'+ri.amount+' '+(ri.unit||(ing?ing.unit:''))+'</td>'
+      +'<td class="td-num">'+(ing?formatYen(c):'-')+'</td></tr>';
+  }).join('');
+  var steps = (r.steps||[]).map(function(s,i){
+    return '<div class="step-row"><div class="step-num">'+(i+1)+'</div>'
+      +'<div style="flex:1;padding-top:4px;line-height:1.7;font-size:13px">'+s+'</div></div>';
+  }).join('');
+  var tags = (r.tags||[]).map(function(t){return '<span class="tag">🏷 '+t+'</span>';}).join('');
+  var allergenHtml = '';
   if(r.allergens && r.allergens.length){
-    allergenRow = r.allergens.map(function(aid){
-      var a=ALLERGENS.find(function(x){return x.id===aid;});
-      return a ? '<span style="border:1px solid #f0d0a0;border-radius:12px;padding:3px 8px;font-size:12px">'+a.emoji+' '+a.label+'</span>' : '';
-    }).join('');
+    allergenHtml = '<div style="margin-top:16px;padding:14px;background:#fff8f0;border:1px solid #f0d0a0;border-radius:10px">'
+      +'<div style="font-size:11px;font-weight:600;color:#a05000;letter-spacing:.08em;margin-bottom:10px">⚠️ アレルゲン情報</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      +r.allergens.map(function(aid){
+        var a=ALLERGENS.find(function(x){return x.id===aid;});
+        return a ? '<span style="display:inline-flex;align-items:center;gap:4px;background:white;border:1px solid #f0d0a0;border-radius:16px;padding:4px 10px;font-size:12px">'+a.emoji+' '+a.label+'</span>' : '';
+      }).join('')
+      +'</div></div>';
   }
-  var scriptTag = ['<scr','ipt>window.onload=function(){window.print();}','</scr','ipt>'].join('');
-  var body = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+r.name+'</title>'
-    +'<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Noto+Sans+JP:wght@300;400&display=swap" rel="stylesheet">'
-    +'<style>@page{margin:2cm}body{font-family:\'Noto Sans JP\',sans-serif;max-width:700px;margin:40px auto;color:#3d3830;font-size:13px}'
-    +'h1{font-family:\'Cormorant Garamond\',serif;font-size:26px;font-weight:300;margin-bottom:6px}'
-    +'h2{font-family:\'Cormorant Garamond\',serif;font-size:17px;margin:18px 0 8px;border-bottom:1px solid #d0c8b8;padding-bottom:5px}'
-    +'table{width:100%;border-collapse:collapse}td,th{padding:7px 10px;border-bottom:1px solid #ede8de;font-size:12px}'
-    +'th{background:#f5f0e8;font-size:11px}.step{display:flex;gap:10px;margin-bottom:10px}'
-    +'.num{width:22px;height:22px;background:#7a9e7e;color:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;margin-top:2px}'
-    +'.logo{font-family:\'Cormorant Garamond\',serif;font-size:11px;letter-spacing:.2em;color:#b5aa96;text-align:right;margin-bottom:18px}'
-    +'img{max-width:100%;border-radius:6px}</style>'
-    +'</head><body>'
-    +'<div class="logo">🌿 WASSA WASSA レシピブック</div>'
-    +(r.photo ? '<img src="'+r.photo+'" style="width:100%;height:180px;object-fit:cover;margin-bottom:14px">' : '')
-    +'<h1>'+r.name+'</h1>'
-    +'<div style="font-size:11px;color:#9e9285;margin-bottom:14px;display:flex;gap:12px">'
-    +(r.category?'<span>'+r.category+'</span>':'')
-    +(r.coursePosition?'<span>📍 '+r.coursePosition+'</span>':'')
-    +'<span>🍴 '+(r.servings||1)+'人分</span>'
-    +'<span>原価 ¥'+Math.round(cost).toLocaleString()+'</span>'
-    +'</div>'
-    +(r.description?'<p style="color:#6e6557;line-height:1.7;margin-bottom:14px">'+r.description+'</p>':'')
-    +(ingRows?'<h2>材料</h2><table><thead><tr><th>食材</th><th>量</th></tr></thead><tbody>'+ingRows+'</tbody></table>':'')
-    +(stepRows?'<h2>手順</h2>'+stepRows:'')
-    +(r.notes?'<h2>調理メモ</h2><div style="background:#f5f0e8;padding:10px;border-radius:6px;line-height:1.7">'+r.notes+'</div>':'')
-    +(allergenRow?'<h2>アレルゲン情報</h2><div style="background:#fff8f0;border:1px solid #f0d0a0;padding:10px;border-radius:6px;display:flex;flex-wrap:wrap;gap:6px">'+allergenRow+'</div>':'')
-    +scriptTag
-    +'</body></html>';
-  var win = window.open('','_blank');
-  win.document.write(body);
-  win.document.close();
-}
-function renderAllergenGrid(){
-  const el=document.getElementById('rf-allergens-grid');if(!el)return;
-  el.innerHTML=ALLERGENS.map(a=>`
-    <label style="display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:${formAllergens.includes(a.id)?'rgba(168,197,172,0.2)':'var(--white)'};transition:all .15s">
-      <input type="checkbox" ${formAllergens.includes(a.id)?'checked':''} onchange="toggleAllergen('${a.id}',this.checked)" style="accent-color:var(--accent);width:15px;height:15px">
-      <span style="font-size:15px">${a.emoji}</span>
-      <span style="font-size:12px">${a.label}</span>
-    </label>`).join('');
-}
-
-function toggleAllergen(id,checked){
-  if(checked){if(!formAllergens.includes(id))formAllergens.push(id);}
-  else{formAllergens=formAllergens.filter(x=>x!==id);}
-  renderAllergenGrid();
+  var modalHtml =
+    '<div class="modal-header">'
+    +'<div class="modal-title">'+r.name+'</div>'
+    +'<div style="display:flex;gap:8px;align-items:center">'
+    +'<button class="btn btn-secondary btn-sm no-print" onclick="printRecipe(\''+r.id+'\')">🖨 印刷</button>'
+    +'<button class="btn btn-primary btn-sm no-print" onclick="closeModal();openRecipeForm(\''+r.id+'\')">✏️ 編集</button>'
+    +'<button class="modal-close" onclick="closeModal()">✕</button>'
+    +'</div></div>'
+    +'<div class="modal-body">'
+    +(r.photo?'<div style="width:100%;height:200px;border-radius:10px;overflow:hidden;margin-bottom:16px"><img src="'+r.photo+'" style="width:100%;height:100%;object-fit:cover"></div>':'')
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">'
+    +(r.category?'<span class="tag">'+r.category+'</span>':'')
+    +(r.coursePosition?'<span class="tag">📍 '+r.coursePosition+'</span>':'')
+    +'<span class="tag">🍴 '+(r.servings||1)+'人分</span>'
+    +tags+'</div>'
+    +(r.description?'<p style="color:var(--text-light);margin-bottom:16px;line-height:1.7">'+r.description+'</p>':'')
+    +'<div class="stat-card stat-accent" style="margin-bottom:16px"><div class="stat-label">コスト</div><div class="stat-value">'+formatYen(cost)+'</div></div>'
+    +(ingRows
+      ?'<h3 style="font-size:16px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">材料 ('+(r.servings||1)+'人分)</h3>'
+       +'<div class="table-wrap" style="margin-bottom:16px"><table><thead><tr><th>食材</th><th>量</th><th>原価</th></tr></thead><tbody>'+ingRows+'</tbody>'
+       +'<tfoot><tr><td colspan="2" style="text-align:right;font-size:12px;color:var(--text-muted)">合計</td><td class="td-num" style="font-weight:600">'+formatYen(cost)+'</td></tr></tfoot></table></div>'
+      :'')
+    +(steps?'<h3 style="font-size:16px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">手順</h3>'+steps:'')
+    +(r.notes?'<div style="background:var(--bg2);border-radius:8px;padding:12px;margin-top:14px"><div style="font-size:11px;color:var(--text-muted);margin-bottom:5px">調理メモ</div><div style="line-height:1.7;font-size:13px">'+r.notes+'</div></div>':'')
+    +allergenHtml
+    +'</div>';
+  openModal(modalHtml);
 }
 
 function openRecipeForm(id) {
@@ -688,11 +646,11 @@ function openRecipeForm(id) {
     </div>
     <div class="modal-body">
       <div class="tabs">
-        <div class="tab active" onclick="switchRecipeTab('basic',this)">基本情報</div>
-        <div class="tab" onclick="switchRecipeTab('ingredients',this)">材料・原価</div>
-        <div class="tab" onclick="switchRecipeTab('steps',this)">手順</div>
-        <div class="tab" onclick="switchRecipeTab('allergens',this)">アレルゲン</div>
-        <div class="tab" onclick="switchRecipeTab('photo',this)">写真・メモ</div>
+        <div class="tab active" onclick="switchRecipeTab(&apos;basic&apos;,this)">基本情報</div>
+        <div class="tab" onclick="switchRecipeTab(&apos;ingredients&apos;,this)">材料・原価</div>
+        <div class="tab" onclick="switchRecipeTab(&apos;steps&apos;,this)">手順</div>
+        <div class="tab" onclick="switchRecipeTab(&apos;allergens&apos;,this)">アレルゲン</div>
+        <div class="tab" onclick="switchRecipeTab(&apos;photo&apos;,this)">写真・メモ</div>
       </div>
       <div id="recipe-tab-basic">
         <div class="form-grid">
@@ -723,7 +681,7 @@ function openRecipeForm(id) {
       </div>
       <div id="recipe-tab-photo" class="hidden">
         <div class="form-group" style="margin-bottom:14px"><label>料理写真</label>
-          <div class="photo-drop" onclick="document.getElementById('rf-photo-input').click()">
+          <div class="photo-drop" onclick="triggerPhotoUpload()">
             <div class="photo-drop-icon">📷</div><div>クリックまたはドロップで写真を追加</div>
             <input type="file" id="rf-photo-input" accept="image/*" style="display:none" onchange="handlePhotoUpload(this)">
           </div>
@@ -739,6 +697,8 @@ function openRecipeForm(id) {
     </div>`);
   renderIngredientRows(); renderStepRows(); updateCostPreview();
 }
+
+function triggerPhotoUpload(){document.getElementById('rf-photo-input').click();}
 
 function switchRecipeTab(tab,el) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -798,8 +758,9 @@ function renderStepRows(){const el=document.getElementById('rf-steps-list');if(!
 function addStep(){formSteps.push('');renderStepRows();}
 function removeStep(idx){formSteps.splice(idx,1);renderStepRows();}
 
-function addTag(){const input=document.getElementById('rf-tag-input');const val=input.value.trim();if(val&&!formTags.includes(val)){formTags.push(val);document.getElementById('rf-tags').innerHTML=formTags.map(t=>`<span class="tag">${t}<span class="tag-remove" onclick="removeTag('${t}')">✕</span></span>`).join('');}input.value='';}
-function removeTag(t){formTags=formTags.filter(x=>x!==t);const el=document.getElementById('rf-tags');if(el)el.innerHTML=formTags.map(tag=>`<span class="tag">${tag}<span class="tag-remove" onclick="removeTag('${tag}')">✕</span></span>`).join('');}
+function addTag(){var input=document.getElementById('rf-tag-input');var val=input.value.trim();if(val&&!formTags.includes(val)){formTags.push(val);renderTagList();}input.value='';}
+function removeTag(t){formTags=formTags.filter(function(x){return x!==t;});renderTagList();}
+function renderTagList(){var el=document.getElementById('rf-tags');if(!el)return;el.innerHTML=formTags.map(function(tag){return '<span class="tag">'+tag+'<span class="tag-remove" onclick="removeTag(\''+tag+'\')">✕</span></span>';}).join('');}
 function handlePhotoUpload(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{formPhoto=e.target.result;document.getElementById('rf-photo-preview').innerHTML=`<img src="${formPhoto}" style="max-width:100%;border-radius:8px;max-height:140px;object-fit:cover">`;};reader.readAsDataURL(file);}
 
 async function saveRecipe(){
@@ -843,28 +804,36 @@ function renderCourses() {
   let html = '';
   COURSE_CATEGORIES.forEach(cat=>{
     const list = byCat[cat]||[];
-    html += `<div style="margin-bottom:28px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-        <h2 style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400">${cat}</h2>
-        <button class="btn btn-secondary btn-sm" onclick="openCourseForm(null,'${cat}')">＋ 追加</button>
-      </div>
-      ${list.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">${list.map(c=>courseCardHTML(c)).join('')}</div>` :
-        `<div style="color:var(--text-muted);font-size:13px;padding:14px 0">まだコースがありません</div>`}
-    </div>`;
+    var catId=cat.replace(/[^a-z]/gi,'');
+    html += '<div style="margin-bottom:28px">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
+      +'<h2 style="font-size:20px;font-weight:400">'+cat+'</h2>'
+      +'<button class="btn btn-secondary btn-sm" onclick="openCourseForm(null,\''+cat+'\')">＋ 追加</button>'
+      +'</div>'
+      +(list.length
+        ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">'+list.map(function(c){return courseCardHTML(c);}).join('')+'</div>'
+        : '<div style="color:var(--text-muted);font-size:13px;padding:14px 0">まだコースがありません</div>')
+      +'</div>';
   });
 
   document.getElementById('content').innerHTML = html||`<div class="empty-state"><div class="empty-state-icon">🍽️</div><h3>コースがありません</h3></div>`;
 }
 
 function courseCardHTML(c) {
-  const totalCost = (c.dishes||[]).reduce((s,d)=>{const r=DB.recipes.find(r=>r.id===d.recipeId);return s+(r?calcRecipeCost(r):0);},0);
-  return `<div class="card" onclick="openCourseForm('${c.id}')" style="cursor:pointer;transition:all .2s;margin:0" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-    <div class="card-header">
-      <div><div class="card-title">${c.name}</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">${c.dishes?.length||0}品構成</div></div>
-      <div style="text-align:right">${totalCost?`<div style="font-size:15px;font-family:'Cormorant Garamond',serif">原価 ${formatYen(totalCost)}</div>`:''}</div>
-    </div>
-    ${(c.dishes||[]).map((d,i)=>{const r=DB.recipes.find(r=>r.id===d.recipeId);return`<div style="display:flex;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--bg3)"><span style="color:var(--text-muted);width:16px">${i+1}</span><span style="color:var(--accent-dark);font-size:10px;width:80px;letter-spacing:.03em">${d.position||''}</span><span>${r?r.name:'未設定'}</span></div>`;}).join('')}
-  </div>`;
+  var totalCost=(c.dishes||[]).reduce(function(s,d){var r=DB.recipes.find(function(x){return x.id===d.recipeId;});return s+(r?calcRecipeCost(r):0);},0);
+  var dishRows=(c.dishes||[]).map(function(d,i){
+    var r=DB.recipes.find(function(x){return x.id===d.recipeId;});
+    return '<div style="display:flex;gap:8px;padding:5px 0;font-size:12px;border-bottom:1px solid var(--bg3)">'
+      +'<span style="color:var(--text-muted);width:16px">'+(i+1)+'</span>'
+      +'<span style="color:var(--accent-dark);font-size:10px;width:80px;letter-spacing:.03em">'+(d.position||'')+'</span>'
+      +'<span>'+(r?r.name:'未設定')+'</span></div>';
+  }).join('');
+  return '<div class="card" onclick="openCourseForm(\''+c.id+'\')" style="cursor:pointer;transition:all .2s;margin:0" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'\'">'
+    +'<div class="card-header">'
+    +'<div><div class="card-title">'+c.name+'</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+(c.dishes?c.dishes.length:0)+'品構成</div></div>'
+    +'<div style="text-align:right">'+(totalCost?'<div style="font-size:15px">原価 '+formatYen(totalCost)+'</div>':'')+'</div>'
+    +'</div>'
+    +dishRows+'</div>';
 }
 
 let editingCourseId=null, courseDishes=[], defaultCourseCategory='大人ディナーコース';
@@ -968,6 +937,7 @@ function renderIngTable(){
 }
 
 function openIngredientForm(id){
+  editingIngredientId = id||null;
   const i=id?DB.ingredients.find(i=>i.id===id):null;
   const cats=['野菜','肉類','魚介類','乳製品','調味料','酒類','乾物','その他'];
   openModal(`
@@ -996,7 +966,7 @@ function openIngredientForm(id){
     <div class="modal-footer">
       ${i?`<button class="btn btn-danger btn-sm" onclick="deleteIngredient('${i.id}')">🗑 削除</button>`:''}
       <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
-      <button class="btn btn-primary" onclick="saveIngredient('${id||''}')">💾 保存</button>
+      <button class="btn btn-primary" onclick="saveIngredientCurrent()">💾 保存</button>
     </div>`);
   updateTaxPreview();
 }
@@ -1015,6 +985,8 @@ function updateTaxPreview(){
     info.textContent=val>0?`→ 税抜: ${formatYen(taxExcl(val))} (消費税10%)` : '';
   }
 }
+
+function saveIngredientCurrent(){saveIngredient(editingIngredientId||"");}
 
 async function saveIngredient(id){
   const name=document.getElementById('if-name').value.trim();
@@ -1373,38 +1345,92 @@ async function importFromPhoto(input){
   reader.readAsDataURL(file);
 }
 async function parseRecipeWithAI(text){
-  const el=document.getElementById('import-result');if(!el)return;
-  el.innerHTML=`<div style="padding:18px;text-align:center"><div class="loading-spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--accent)"></div> AIが解析中...</div>`;
+  var el=document.getElementById('import-result');
+  if(!el) return;
+  if(!DB.settings.anthropicKey){
+    el.innerHTML='<div style="padding:10px;background:#fff3cd;border-radius:8px;font-size:13px">⚠️ 設定ページでAnthropicのAPIキーを入力してください。</div>';
+    return;
+  }
+  el.innerHTML='<div style="padding:18px;text-align:center"><div class="loading-spinner" style="border-color:rgba(0,0,0,.2);border-top-color:var(--accent)"></div> AIが解析中...</div>';
   try{
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey||'','anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:`以下のレシピテキストからJSON形式のみで回答してください（説明文不要）:\n{"name":"料理名","description":"説明","servings":人数,"category":"カテゴリ","ingredients":[{"name":"食材名","amount":"量","unit":"単位"}],"steps":["手順1"],"notes":"メモ"}\n\nテキスト:\n${text.slice(0,3000)}`},{role:'assistant',content:'{'}]})});
-    const data=await resp.json();processImportResult('{'+(data.content?.[0]?.text||''));
-  }catch(e){el.innerHTML=`<div style="padding:10px;background:#f8d7da;border-radius:8px">解析に失敗しました。</div>`;}
+    var prompt='以下のレシピテキストからJSONのみで回答してください（説明文・コードブロック不要）。形式:\n{"name":"料理名","description":"説明","servings":1,"category":"カテゴリ","ingredients":[{"name":"食材名","amount":"量","unit":"単位"}],"steps":["手順1"],"notes":"メモ"}\n\nテキスト:\n'+text.slice(0,3000);
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':DB.settings.anthropicKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+    });
+    var data=await resp.json();
+    if(data.error){
+      el.innerHTML='<div style="padding:10px;background:#f8d7da;border-radius:8px;font-size:13px">APIエラー: '+data.error.message+'</div>';
+      return;
+    }
+    var rawText=(data.content&&data.content[0]&&data.content[0].text)||'';
+    if(!rawText){
+      el.innerHTML='<div style="padding:10px;background:#f8d7da;border-radius:8px;font-size:13px">AIからの応答が空でした。再試行してください。</div>';
+      return;
+    }
+    processImportResult(rawText);
+  }catch(e){
+    el.innerHTML='<div style="padding:10px;background:#f8d7da;border-radius:8px;font-size:13px">通信エラー: '+e.message+'</div>';
+  }
 }
+
 function processImportResult(text){
-  const el=document.getElementById('import-result');if(!el)return;
+  var el=document.getElementById('import-result');
+  if(!el) return;
   try{
-    const clean=text.replace(/```json\n?/g,'').replace(/```\n?/g,'').trim();
-    const recipe=JSON.parse(clean);
-    el.innerHTML=`<div style="padding:14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border)">
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:17px;margin-bottom:10px">✅ 解析結果</h3>
-      <div style="margin-bottom:6px"><strong>${recipe.name}</strong></div>
-      ${recipe.description?`<div style="font-size:12px;color:var(--text-light);margin-bottom:6px">${recipe.description}</div>`:''}
-      ${recipe.ingredients?.length?`<div style="font-size:12px;margin-bottom:6px"><strong>材料 (${recipe.servings||1}人分):</strong> ${recipe.ingredients.map(i=>`${i.name} ${i.amount}${i.unit||''}`).join('、')}</div>`:''}
-      ${recipe.steps?.length?`<div style="font-size:12px"><strong>手順:</strong> ${recipe.steps.length}ステップ</div>`:''}
-      <div style="margin-top:14px;display:flex;gap:10px">
-        <button class="btn btn-primary" onclick='saveImportedRecipe(${JSON.stringify(JSON.stringify(recipe))})'>📖 レシピに追加</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('import-result').innerHTML=''">✕ キャンセル</button>
-      </div>
-    </div>`;
-  }catch(e){el.innerHTML=`<div style="padding:10px;background:#fff3cd;border-radius:8px;font-size:13px">解析結果を読み込めませんでした。</div>`;}
+    var clean=text.replace(/```json[\s\S]*?```/g,'').replace(/```/g,'').trim();
+    var jsonMatch=clean.match(/\{[\s\S]*\}/);
+    if(jsonMatch) clean=jsonMatch[0];
+    var recipe=JSON.parse(clean);
+    if(!recipe.name) throw new Error('name missing');
+    var ingList=(recipe.ingredients||[]).map(function(i){return i.name+' '+i.amount+(i.unit||'');}).join('、');
+    var div=document.createElement('div');
+    div.style.cssText='padding:14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border)';
+    div.innerHTML=
+      '<h3 style="font-size:17px;margin-bottom:10px">✅ 解析結果: '+recipe.name+'</h3>'
+      +(recipe.description?'<div style="font-size:12px;color:var(--text-light);margin-bottom:6px">'+recipe.description+'</div>':'')
+      +(ingList?'<div style="font-size:12px;margin-bottom:6px"><strong>材料:</strong> '+ingList+'</div>':'')
+      +(recipe.steps&&recipe.steps.length?'<div style="font-size:12px;margin-bottom:10px"><strong>手順:</strong> '+recipe.steps.length+'ステップ</div>':'')
+      +'<div style="display:flex;gap:10px;margin-top:10px">'
+      +'<button class="btn btn-primary" id="save-import-btn">📖 レシピに追加</button>'
+      +'<button class="btn btn-secondary" id="cancel-import-btn">✕ キャンセル</button>'
+      +'</div>';
+    el.innerHTML='';
+    el.appendChild(div);
+    document.getElementById('save-import-btn').onclick=function(){saveImportedRecipe(recipe);};
+    document.getElementById('cancel-import-btn').onclick=function(){el.innerHTML='';};
+  }catch(e){
+    el.innerHTML='<div style="padding:10px;background:#fff3cd;border-radius:8px;font-size:13px">⚠️ 解析結果を読み込めませんでした。テキストをより具体的にして再試行してください。<br><small style="color:#666">'+e.message+'</small></div>';
+  }
 }
-async function saveImportedRecipe(jsonStr){
+
+async function saveImportedRecipe(recipe){
   try{
-    const r=JSON.parse(jsonStr);
-    const newRecipe={id:genId(),name:r.name||'取り込みレシピ',description:r.description||'',category:r.category||'',servings:r.servings||1,steps:r.steps||[],notes:r.notes||'',ingredients:[],tags:['取り込み'],favorite:false};
-    if(r.ingredients){r.ingredients.forEach(ri=>{const m=DB.ingredients.find(i=>i.name.includes(ri.name)||ri.name.includes(i.name));if(m){const a=parseFloat(ri.amount)||0;newRecipe.ingredients.push({id:genId(),ingredientId:m.id,amount:a,unit:ri.unit||m.unit});}});}
-    await dbUpsert('recipes',newRecipe);alert(`「${newRecipe.name}」をレシピに追加しました！`);showPage('recipes');
-  }catch(e){alert('保存に失敗しました');}
+    var newRecipe={
+      id:genId(), name:recipe.name||'取り込みレシピ',
+      description:recipe.description||'', category:recipe.category||'',
+      servings:recipe.servings||1, steps:recipe.steps||[],
+      notes:recipe.notes||'', ingredients:[], tags:['取り込み'],
+      favorite:false, allergens:[], coursePosition:''
+    };
+    if(recipe.ingredients){
+      recipe.ingredients.forEach(function(ri){
+        var m=DB.ingredients.find(function(i){
+          return i.name.includes(ri.name)||ri.name.includes(i.name);
+        });
+        if(m) newRecipe.ingredients.push({id:genId(),ingredientId:m.id,amount:parseFloat(ri.amount)||0,unit:ri.unit||m.unit});
+      });
+    }
+    await dbUpsert('recipes',newRecipe);
+    alert('「'+newRecipe.name+'」をレシピに追加しました！');
+    showPage('recipes');
+  }catch(e){alert('保存に失敗しました: '+e.message);}
 }
 
 // ========== SETTINGS ==========
