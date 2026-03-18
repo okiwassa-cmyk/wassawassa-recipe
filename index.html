@@ -2304,6 +2304,8 @@ function processImportResult(text){
           }
           if(window._pendingRecipe&&window._pendingRecipe.ingredients[ix]){
             window._pendingRecipe.ingredients[ix].name=item.name;
+            window._pendingRecipe.ingredients[ix]._matchedId=item.id;
+            window._pendingRecipe.ingredients[ix]._matchedUnitPrice=parseFloat(item.unitPrice||0);
           }
         });
       }
@@ -2365,10 +2367,19 @@ async function saveImportedRecipe(recipe){
         var riName=String(ri.name).trim();
         if(!riName) continue;
         var matched=null;
-        for(var ji=0;ji<DB.ingredients.length;ji++){
-          var ing=DB.ingredients[ji];
-          if(ing.name===riName||ing.name.includes(riName)||riName.includes(ing.name)){
-            matched=ing; break;
+        // 0. 取り込み画面でユーザーが選択した食材IDを最優先
+        if(ri._matchedId){
+          matched=DB.ingredients.find(function(g){return g.id===ri._matchedId;})||null;
+        }
+        // 1. 完全一致
+        if(!matched) matched=DB.ingredients.find(function(g){return g.name===riName;})||null;
+        // 2. 部分一致
+        if(!matched){
+          for(var ji=0;ji<DB.ingredients.length;ji++){
+            var ing=DB.ingredients[ji];
+            if(ing.name.includes(riName)||riName.includes(ing.name)){
+              matched=ing; break;
+            }
           }
         }
         if(!matched){
