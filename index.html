@@ -303,7 +303,7 @@ const DIET_TYPES = [
 // グルテンフリー: gluten なし
 const COURSE_CATEGORIES = ['大人ディナーコース','子供ディナーコース','朝食'];
 const COURSE_POSITIONS = ['前菜','スープ','サラダ','メイン（肉）','メイン（魚）','麺類','米類','パン','デザート','副菜','調味料','その他'];
-const RECIPE_CATEGORIES = ['和食','洋食','中華','エスニック','その他'];
+const RECIPE_CATEGORIES = ['和食','洋食','中華','エスニック','出汁・ソース','ドレッシング','調味料','デザート','その他'];
 const TAX_RATE = 0.10;
 const ALLERGENS = [
   { id:'egg',    label:'卵',       emoji:'🥚' },
@@ -417,6 +417,15 @@ async function dbDelete(table, id) {
 function genId() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function formatYen(n) { return '¥'+Math.round(n||0).toLocaleString(); }
 
+
+function getSubRecipeUnitPrice(recipeId, unit) {
+  // サブレシピ（出汁・ソースなど）の単位あたり原価を計算
+  var r = DB.recipes.find(function(x){return x.id===recipeId;});
+  if(!r || !r.yieldAmount || r.yieldAmount <= 0) return 0;
+  var cost = calcRecipeCost(r);
+  var pricePerUnit = cost / r.yieldAmount; // 1ml/gあたりの原価
+  return pricePerUnit;
+}
 function calcRecipeCost(recipe) {
   if (!recipe.ingredients || !recipe.ingredients.length) return 0;
   return recipe.ingredients.reduce(function(sum, ri) {
@@ -741,9 +750,9 @@ function openRecipeForm(id) {
       <div id="recipe-tab-basic">
         <div class="form-grid">
           <div class="form-group full"><label>料理名 *</label><input type="text" id="rf-name" value="${r?r.name:''}" placeholder="例: 島豚ラフテーの赤ワイン煮"></div>
-          <div class="form-group"><label>カテゴリ</label><select class="form-control" id="rf-category"><option value="">選択してください</option>${catOpts}</select></div>
+          <div class="form-group"><label>カテゴリ</label><input type="text" id="rf-category" list="rf-cat-list" value="${r?r.category:''}" placeholder="カテゴリを入力または選択" autocomplete="off"><datalist id="rf-cat-list">${RECIPE_CATEGORIES.map(c=>`<option value="${c}">`).join('')}</datalist></div>
           <div class="form-group"><label>コースポジション</label><select class="form-control" id="rf-position"><option value="">選択してください</option>${posOpts}</select></div>
-          <div class="form-group"><label>何人分</label><input type="number" id="rf-servings" value="${r?r.servings||1:1}" step="any" min="0" placeholder="例: 2"></div>
+          <div class="form-group"><label>何人分</label><input type="number" id="rf-servings" value="${r?r.servings||1:1}" step="any" min="0" placeholder="例: 2"></div><div class="form-group"><label>出来上がり量（サブレシピ用）</label><div style="display:flex;gap:6px;align-items:center"><input type="number" id="rf-yield-amount" value="${r?r.yieldAmount||'':'' }" step="any" min="0" placeholder="例: 800" style="flex:1"><input type="text" id="rf-yield-unit" value="${r?r.yieldUnit||'ml':' ml'}" placeholder="ml/g" style="width:60px"></div><div id="rf-yield-cost" style="font-size:11px;color:var(--accent-dark);margin-top:4px"></div></div>
           <div class="form-group full"><label>説明・コンセプト</label><textarea id="rf-desc" placeholder="料理のコンセプトなど">${r?r.description||'':''}</textarea></div>
           <div class="form-group full"><label>タグ</label>
             <div style="display:flex;gap:8px;margin-bottom:6px"><input type="text" id="rf-tag-input" placeholder="タグを入力してEnter" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTag()}"><button class="btn btn-secondary btn-sm" onclick="addTag()">追加</button></div>
@@ -1095,6 +1104,8 @@ async function saveRecipe(){
     steps:formSteps.filter(s=>s.trim()),
     notes:document.getElementById('rf-notes')?.value||'',
     photo:formPhoto,
+    yieldAmount:parseFloat(document.getElementById('rf-yield-amount').value)||null,
+    yieldUnit:document.getElementById('rf-yield-unit').value.trim()||'ml',
     allergens:[...formAllergens],
     favorite:editingRecipeId?(DB.recipes.find(r=>r.id===editingRecipeId)?.favorite||false):false,
   };
