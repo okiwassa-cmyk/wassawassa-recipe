@@ -1918,50 +1918,7 @@ function exportSuppliersExcel(){
 }
 
 function exportRecipeWord(id){
-  var r=id?DB.recipes.find(function(x){return x.id===id;}):null;
-  var recipes=r?[r]:DB.recipes;
-  var pages=recipes.map(function(recipe){
-    var nutrition=calcRecipeNutrition(recipe);
-    var dietInfo=calcDietInfo(recipe.ingredients||[]);
-    var cost=calcRecipeCost(recipe);
-    var ingTable=(recipe.ingredients||[]).map(function(ri){
-      var ing=DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
-      var subR=ri._subRecipeId?DB.recipes.find(function(x){return x.id===ri._subRecipeId;}):null;
-      var name=subR?"🍲 "+subR.name:(ing?ing.name:"不明");
-      var c=subR?calcSubRecipeUnitPrice(subR)*parseFloat(ri.amount||0):(ing&&ing.unitPrice?parseFloat(ing.unitPrice)*parseFloat(ri.amount||0):0);
-      return "<tr><td style=\"padding:4px 8px;border:1px solid #ddd\">"+name+"</td>"
-        +"<td style=\"padding:4px 8px;border:1px solid #ddd;text-align:right\">"+ri.amount+" "+(ri.unit||"")+"</td>"
-        +"<td style=\"padding:4px 8px;border:1px solid #ddd;text-align:right\">"+(c>0?"¥"+Math.round(c):"-")+"</td></tr>";
-    }).join("");
-    var stepsHtml=(recipe.steps||[]).map(function(s,i){
-      return "<p style=\"margin:6px 0\"><b>"+(i+1)+".</b> "+s+"</p>";
-    }).join("");
-    var nutrHtml="";
-    if(nutrition.kcal>0){
-      nutrHtml="<h3 style=\"color:#c8975a;font-size:12pt\">栄養素</h3>"
-        +"<p>カロリー:"+Math.round(nutrition.kcal)+"kcal / タンパク質:"+Math.round(nutrition.protein*10)/10+"g"
-        +" / 脂質:"+Math.round(nutrition.fat*10)/10+"g / 炭水化物:"+Math.round(nutrition.carbs*10)/10+"g"
-        +" / 塩分:"+Math.round(nutrition.salt*10)/10+"g</p>";
-    }
-    return "<div style=\"page-break-after:always;font-family:serif;max-width:170mm;margin:0 auto;padding:10mm\">"
-      +"<h1 style=\"font-size:18pt;border-bottom:3px solid #c8975a;padding-bottom:8px\">"+recipe.name+"</h1>"
-      +"<p style=\"color:#888;font-size:10pt\">"+(recipe.servings||1)+"人分"+(recipe.category?" | "+recipe.category:"")+(cost>0?" | 原価 ¥"+Math.round(cost):"")+"</p>"
-      +(dietInfo&&dietInfo.length?"<p style=\"color:#2e7d32\">"+dietInfo.map(function(d){return d.label;}).join(" / ")+"</p>":"")
-      +(recipe.description?"<p style=\"color:#666;font-style:italic\">"+recipe.description+"</p>":"")
-      +(ingTable?"<h3 style=\"color:#c8975a\">材料</h3><table style=\"border-collapse:collapse;width:100%\"><tr style=\"background:#f9f5f0\"><th style=\"padding:4px 8px;border:1px solid #ddd\">食材</th><th style=\"padding:4px 8px;border:1px solid #ddd\">量</th><th style=\"padding:4px 8px;border:1px solid #ddd\">原価</th></tr>"+ingTable+"</table>":"")
-      +(stepsHtml?"<h3 style=\"color:#c8975a\">作り方</h3>"+stepsHtml:"")
-      +(recipe.notes?"<h3 style=\"color:#c8975a\">メモ</h3><p>"+recipe.notes+"</p>":"")
-      +nutrHtml+"</div>";
-  }).join("");
-  var wordHtml="<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
-    +"<style>@page{size:A4;margin:20mm} body{font-family:serif;font-size:11pt}</style>"
-    +"</head><body>"+pages+"</body></html>";
-  var blob=new Blob([wordHtml],{type:"application/msword;charset=utf-8"});
-  var a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  var fname=r?r.name.slice(0,20)+"_レシピ":"全レシピ";
-  a.download="WASSAWASSA_"+fname+"_"+new Date().toISOString().slice(0,10)+".doc";
-  a.click();
+  alert("Word出力は現在メンテナンス中です");
 }
 
 // ========== EXCEL BACKUP ==========
