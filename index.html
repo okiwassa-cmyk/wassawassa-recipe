@@ -3058,6 +3058,7 @@ create table courses (id text primary key, name text, "courseCategory" text, des
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-secondary" onclick="downloadJSON()">📤 JSONエクスポート</button>
         <button class="btn btn-secondary" onclick="exportAllDataExcel()">📊 Excelバックアップ</button>
+        <button class="btn btn-secondary" onclick="exportRecipeWord(null)">📝 全レシピをWordで保存</button>
         <input type="file" id="import-json-file" accept=".json" onchange="importJSON(this)" style="display:none">
         <button class="btn btn-secondary" onclick="document.getElementById('import-json-file').click()">📥 JSONインポート</button>
       </div>
