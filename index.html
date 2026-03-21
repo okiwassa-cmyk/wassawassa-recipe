@@ -1888,6 +1888,88 @@ function exportSuppliersExcel(){
   XLSX.writeFile(wb,'WASSAWASSA_業者別原価表_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
+// ========== EXCEL BACKUP ==========
+function exportAllDataExcel(){
+  if(typeof XLSX==='undefined'){alert('少々お待ちください');return;}
+  var wb=XLSX.utils.book_new();
+  var ingHeader=['食材名','カテゴリ','単位','税抜単価','税込単価','購入数量','購入単位','購入価格','仕入先','商品名','メモ'];
+  var ingRows=DB.ingredients.map(function(i){
+    return [i.name,i.category||'',i.unit,
+      Math.round((i.unitPrice||0)*1000)/1000,
+      Math.round(taxIncl(i.unitPrice||0)*1000)/1000,
+      i.buyQty||'',i.buyUnit||'',i.buyPrice||'',
+      i.supplier||'',i.productName||'',i.note||''];
+  });
+  var wsIng=XLSX.utils.aoa_to_sheet([ingHeader].concat(ingRows));
+  wsIng['!cols']=[14,10,6,10,10,8,8,10,14,16,16].map(function(w){return{wch:w};});
+  XLSX.utils.book_append_sheet(wb,wsIng,'食材');
+  var recHeader=['料理名','カテゴリ','人数','説明','食材','手順','メモ','タグ'];
+  var recRows=DB.recipes.map(function(r){
+    var ings=(r.ingredients||[]).map(function(ri){
+      var ing=DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
+      return (ing?ing.name:'不明')+':'+ri.amount+':'+(ri.unit||'');
+    }).join(' / ');
+    return [r.name,r.category||'',r.servings||1,r.description||'',ings,(r.steps||[]).join(' → '),r.notes||'',(r.tags||[]).join(', ')];
+  });
+  var wsRec=XLSX.utils.aoa_to_sheet([recHeader].concat(recRows));
+  wsRec['!cols']=[16,10,6,20,40,40,16,12].map(function(w){return{wch:w};});
+  XLSX.utils.book_append_sheet(wb,wsRec,'レシピ');
+  var crsHeader=['コース名','カテゴリ','説明','構成'];
+  var crsRows=DB.courses.map(function(c){
+    var dishes=(c.dishes||[]).map(function(d){
+      var r=DB.recipes.find(function(x){return x.id===d.recipeId;});
+      return (d.position||'')+':'+(r?r.name:'');
+    }).join(' / ');
+    return [c.name,c.courseCategory||'',c.description||'',dishes];
+  });
+  var wrsCrs=XLSX.utils.aoa_to_sheet([crsHeader].concat(crsRows));
+  wrsCrs['!cols']=[16,14,20,40].map(function(w){return{wch:w};});
+  XLSX.utils.book_append_sheet(wb,wrsCrs,'コース');
+  XLSX.writeFile(wb,'WASSAWASSA_backup_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+function exportRecipeExcel(id){
+  if(typeof XLSX==='undefined'){alert('少々お待ちください');return;}
+  var r=id?DB.recipes.find(function(x){return x.id===id;}):null;
+  var recipes=r?[r]:DB.recipes;
+  var wb=XLSX.utils.book_new();
+  recipes.forEach(function(recipe){
+    var nutrition=calcRecipeNutrition(recipe);
+    var dietInfo=calcDietInfo(recipe.ingredients||[]);
+    var cost=calcRecipeCost(recipe);
+    var data=[];
+    data.push([recipe.name]);
+    data.push(['']);
+    if(recipe.description) data.push([recipe.description]);
+    data.push([(recipe.servings||1)+'人分'+(recipe.category?' | '+recipe.category:'')+(cost>0?' | 原価'+Math.round(cost)+'円':'')]);
+    if(dietInfo&&dietInfo.length) data.push([dietInfo.map(function(d){return d.label;}).join(' / ')]);
+    data.push(['']);
+    data.push(['材料','','量','単位','原価']);
+    (recipe.ingredients||[]).forEach(function(ri){
+      var ing=DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
+      var c=ing&&ing.unitPrice?Math.round(parseFloat(ing.unitPrice)*parseFloat(ri.amount||0)):0;
+      data.push(['',(ing?ing.name:'不明'),ri.amount,ri.unit||'',c>0?c:'']);
+    });
+    data.push(['']);
+    data.push(['作り方']);
+    (recipe.steps||[]).forEach(function(s,i){data.push([i+1,s]);});
+    if(recipe.notes){data.push(['']);data.push(['メモ']);data.push(['',recipe.notes]);}
+    if(nutrition.kcal>0){
+      data.push(['']);
+      data.push(['栄養素','カロリー','タンパク質','脂質','炭水化物','塩分']);
+      data.push(['合計',Math.round(nutrition.kcal)+'kcal',Math.round(nutrition.protein*10)/10+'g',Math.round(nutrition.fat*10)/10+'g',Math.round(nutrition.carbs*10)/10+'g',Math.round(nutrition.salt*10)/10+'g']);
+      if((recipe.servings||1)>1) data.push(['1人分',Math.round(nutrition.kcal/recipe.servings)+'kcal',Math.round(nutrition.protein/recipe.servings*10)/10+'g',Math.round(nutrition.fat/recipe.servings*10)/10+'g',Math.round(nutrition.carbs/recipe.servings*10)/10+'g',Math.round(nutrition.salt/recipe.servings*10)/10+'g']);
+    }
+    var ws=XLSX.utils.aoa_to_sheet(data);
+    ws['!cols']=[4,22,8,8,8,8].map(function(w){return{wch:w};});
+    ws['!pageSetup']={paperSize:9,orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0};
+    ws['!margins']={left:0.5,right:0.5,top:0.75,bottom:0.75,header:0.3,footer:0.3};
+    XLSX.utils.book_append_sheet(wb,ws,recipe.name.slice(0,31));
+  });
+  var fname=r?r.name.slice(0,20):'全レシピ';
+  XLSX.writeFile(wb,'WASSAWASSA_レシピ_'+fname+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
 // ========== INVENTORY ==========
 function renderInventory(){
   document.getElementById('topbar-actions').innerHTML='<button class="btn btn-primary" onclick="saveInventorySnapshot()">📦 棚卸し記録</button>';
@@ -2871,6 +2953,7 @@ create table courses (id text primary key, name text, "courseCategory" text, des
       <div class="card-header"><div class="card-title">💾 データのバックアップ</div></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-secondary" onclick="downloadJSON()">📤 JSONエクスポート</button>
+        <button class="btn btn-secondary" onclick="exportAllDataExcel()">📊 Excelバックアップ</button>
         <input type="file" id="import-json-file" accept=".json" onchange="importJSON(this)" style="display:none">
         <button class="btn btn-secondary" onclick="document.getElementById('import-json-file').click()">📥 JSONインポート</button>
       </div>
