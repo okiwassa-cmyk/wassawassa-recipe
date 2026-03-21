@@ -2408,12 +2408,12 @@ async function importFromUrl(){
 
 function extractText(html){
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi,'')
-    .replace(/<style[\s\S]*?<\/style>/gi,'')
+    .replace(/<script[sS]*?</script>/gi,'')
+    .replace(/<style[sS]*?</style>/gi,'')
     .replace(/<[^>]+>/g,' ')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
     .replace(/&nbsp;/g,' ').replace(/&#[0-9]+;/g,' ')
-    .replace(/\s+/g,' ').trim();
+    .replace(/s+/g,' ').trim();
 }
 async function importFromPhoto(input){
   var file=input.files[0]; if(!file) return;
@@ -2558,7 +2558,7 @@ function processImportResult(text){
   if(!el) return;
   try{
     // コードブロックを除去してJSONを取り出す
-    var clean=text.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+    var clean=text.replace(/^```jsons*/,'').replace(/^```s*/,'').replace(/s*```$/,'').trim();
     // { から始まる部分を抽出
     var start=clean.indexOf('{');
     if(start>0) clean=clean.slice(start);
@@ -2679,11 +2679,11 @@ function processImportResult(text){
 // 途中で切れたJSONを修復する
 function repairJson(str){
   var s=str;
-  s=s.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/,'')
-     .replace(/,\s*"[^"]*"\s*:\s*$/,'')
-     .replace(/,\s*"[^"]*"\s*$/,'')
-     .replace(/,\s*\{[^}]*$/,'')
-     .replace(/,\s*$/,'')
+  s=s.replace(/,s*"[^"]*"s*:s*[^,}]]*$/,'')
+     .replace(/,s*"[^"]*"s*:s*$/,'')
+     .replace(/,s*"[^"]*"s*$/,'')
+     .replace(/,s*{[^}]*$/,'')
+     .replace(/,s*$/,'')
      .trimEnd();
   var opens=[];
   var inStr=false, esc=false;
@@ -2746,12 +2746,12 @@ async function saveImportedRecipe(recipe){
         var parsedAmt=0;
         if(typeof rawAmt==='number') parsedAmt=rawAmt;
         else if(typeof rawAmt==='string'){
-          var nm=rawAmt.match(/[\d.]+/);
+          var nm=rawAmt.match(/[d.]+/);
           parsedAmt=nm?parseFloat(nm[0]):0;
         }
         var parsedUnit=ri.unit||matched.unit||'';
         if(!parsedUnit && typeof rawAmt==='string'){
-          var um=rawAmt.match(/[^\d.\s]+/);
+          var um=rawAmt.match(/[^d.s]+/);
           if(um) parsedUnit=um[0];
         }
         newRecipe.ingredients.push({
