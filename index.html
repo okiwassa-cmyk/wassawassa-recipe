@@ -1115,26 +1115,29 @@ function printRecipe(id){
     return '<div style="margin-bottom:10px"><strong>'+(si+1)+'.</strong> '+s+'</div>';
   }).join('');
   var photoHtml=r.photo?'<div style="text-align:center;margin-bottom:16px"><img src="'+r.photo+'" style="max-width:280px;max-height:180px;object-fit:cover;border-radius:8px"></div>':'';
-  var w=window.open('','_blank');
-  if(!w){alert('ポップアップをブロックされています。ブラウザの設定で許可してください。');return;}
-  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+r.name+'</title>'
-    +'<style>body{font-family:"Noto Sans JP",sans-serif;max-width:680px;margin:36px auto;padding:0 20px;color:#333;line-height:1.8}'
-    +'h1{font-size:20px;border-bottom:2px solid #c8975a;padding-bottom:8px}h2{font-size:14px;color:#c8975a;margin:18px 0 6px}'
-    +'table{width:100%;border-collapse:collapse}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:13px}'
-    +'@media print{body{margin:10px}}</style></head><body>'
-    +photoHtml
-    +'<h1>'+r.name+'</h1>'
+  var dietHtml=dietInfo&&dietInfo.length?'<p style="font-size:12px">'+dietInfo.map(function(d){return d.label;}).join(' / ')+'</p>':'';
+  var body=photoHtml
+    +'<h1 style="font-size:20px;border-bottom:2px solid #c8975a;padding-bottom:8px">'+r.name+'</h1>'
     +(r.description?'<p style="color:#666;font-size:13px">'+r.description+'</p>':'')
     +'<p style="font-size:12px;color:#999">'+(r.servings?r.servings+'人分　':'')+(r.category||'')+'</p>'
-    +(ingRows?'<h2>材料</h2><table>'+ingRows+'</table>':'')
-    +(stepsHtml?'<h2>作り方</h2>'+stepsHtml:'')
-    +(r.notes?'<h2>メモ</h2><p style="font-size:13px">'+r.notes+'</p>':'')
-    +(dietInfo&&dietInfo.length?'<h2>食事制限</h2><p style="font-size:12px">'+dietInfo.map(function(d){return d.label;}).join(' / ')+'</p>':'')
-    +(nutrition.kcal>0?'<h2>栄養素</h2>'+nutritionPrintHTML(nutrition,r.servings||1):'')
-    +'<scr'+'ipt>window.onload=function(){window.print();}<'+'/scr'+'ipt>'
-    +'</body></html>');
-  w.document.close();
-  w.focus();
+    +dietHtml
+    +(ingRows?'<h2 style="font-size:14px;color:#c8975a;margin:16px 0 6px">材料</h2><table style="width:100%;border-collapse:collapse">'+ingRows+'</table>':'')
+    +(stepsHtml?'<h2 style="font-size:14px;color:#c8975a;margin:16px 0 6px">作り方</h2>'+stepsHtml:'')
+    +(r.notes?'<h2 style="font-size:14px;color:#c8975a;margin:16px 0 6px">メモ</h2><p style="font-size:13px">'+r.notes+'</p>':'')
+    +(nutrition.kcal>0?'<h2 style="font-size:14px;color:#c8975a;margin:16px 0 6px">栄養素</h2>'+nutritionPrintHTML(nutrition,r.servings||1):'');
+  // iframeを使って印刷
+  var iframe=document.createElement('iframe');
+  iframe.style.cssText='position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+r.name+'</title>'
+    +'<style>body{font-family:"Noto Sans JP",sans-serif;max-width:680px;margin:20px auto;padding:0 20px;color:#333;line-height:1.8}'
+    +'table{width:100%;border-collapse:collapse}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:13px}'
+    +'@media print{body{margin:10px}}</style></head><body>'+body+'</body></html>');
+  iframe.contentDocument.close();
+  setTimeout(function(){
+    iframe.contentWindow.print();
+    setTimeout(function(){document.body.removeChild(iframe);},1000);
+  },500);
 }
 
 async function deleteRecipe(id){
