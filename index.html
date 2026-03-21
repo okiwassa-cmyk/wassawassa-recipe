@@ -1917,6 +1917,81 @@ function exportSuppliersExcel(){
   XLSX.writeFile(wb,'WASSAWASSA_業者別原価表_'+new Date().toISOString().slice(0,10)+'.xlsx');
 }
 
+function exportRecipeWord(id){
+  var r=id?DB.recipes.find(function(x){return x.id===id;}):null;
+  var recipes=r?[r]:DB.recipes;
+  var nutrition, dietInfo, cost;
+
+  var allPages=recipes.map(function(recipe){
+    nutrition=calcRecipeNutrition(recipe);
+    dietInfo=calcDietInfo(recipe.ingredients||[]);
+    cost=calcRecipeCost(recipe);
+
+    var ingTable=(recipe.ingredients||[]).map(function(ri){
+      var ing=DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
+      var subR=ri._subRecipeId?DB.recipes.find(function(x){return x.id===ri._subRecipeId;}):null;
+      var name=subR?'🍲 '+subR.name:(ing?ing.name:'不明');
+      var c=subR?calcSubRecipeUnitPrice(subR)*parseFloat(ri.amount||0):(ing&&ing.unitPrice?parseFloat(ing.unitPrice)*parseFloat(ri.amount||0):0);
+      return '<tr><td style="padding:4px 8px;border:1px solid #ddd">'+name+'</td>'
+        +'<td style="padding:4px 8px;border:1px solid #ddd;text-align:right">'+ri.amount+' '+(ri.unit||'')+'</td>'
+        +'<td style="padding:4px 8px;border:1px solid #ddd;text-align:right">'+(c>0?'¥'+Math.round(c):'-')+'</td></tr>';
+    }).join('');
+
+    var stepsHtml=(recipe.steps||[]).map(function(s,i){
+      return '<p style="margin:6px 0"><span style="font-weight:bold;color:#c8975a">'+(i+1)+'.</span> '+s+'</p>';
+    }).join('');
+
+    var nutrHtml='';
+    if(nutrition.kcal>0){
+      nutrHtml='<h3 style="color:#c8975a;font-size:12pt;margin:16px 0 6px">栄養素</h3>'
+        +'<table style="border-collapse:collapse;font-size:10pt"><tr>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd;background:#f9f5f0">カロリー</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd">'+Math.round(nutrition.kcal)+'kcal</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd;background:#f9f5f0">タンパク質</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd">'+Math.round(nutrition.protein*10)/10+'g</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd;background:#f9f5f0">脂質</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd">'+Math.round(nutrition.fat*10)/10+'g</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd;background:#f9f5f0">炭水化物</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd">'+Math.round(nutrition.carbs*10)/10+'g</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd;background:#f9f5f0">塩分</td>'
+        +'<td style="padding:4px 10px;border:1px solid #ddd">'+Math.round(nutrition.salt*10)/10+'g</td>'
+        +'</tr></table>';
+    }
+
+    return '<div style="page-break-after:always;font-family:'MS Mincho','游明朝',serif;max-width:170mm;margin:0 auto;padding:10mm">'
+      +'<h1 style="font-size:18pt;border-bottom:3px solid #c8975a;padding-bottom:8px;margin-bottom:4px">'+recipe.name+'</h1>'
+      +'<p style="color:#888;font-size:10pt;margin:4px 0">'+(recipe.servings||1)+'人分'+(recipe.category?' | '+recipe.category:'')+(cost>0?' | 原価 ¥'+Math.round(cost):'')+'</p>'
+      +(dietInfo&&dietInfo.length?'<p style="font-size:10pt;color:#2e7d32;margin:4px 0">'+dietInfo.map(function(d){return d.label;}).join(' / ')+'</p>':'')
+      +(recipe.description?'<p style="color:#666;font-size:11pt;margin:10px 0;font-style:italic">'+recipe.description+'</p>':'')
+      +(ingTable?'<h3 style="color:#c8975a;font-size:12pt;margin:16px 0 6px">材料</h3>'
+        +'<table style="border-collapse:collapse;font-size:11pt;width:100%">'
+        +'<tr style="background:#f9f5f0"><th style="padding:4px 8px;border:1px solid #ddd;text-align:left">食材</th>'
+        +'<th style="padding:4px 8px;border:1px solid #ddd;text-align:right">量</th>'
+        +'<th style="padding:4px 8px;border:1px solid #ddd;text-align:right">原価</th></tr>'
+        +ingTable+'</table>':'')
+      +(stepsHtml?'<h3 style="color:#c8975a;font-size:12pt;margin:16px 0 6px">作り方</h3>'+stepsHtml:'')
+      +(recipe.notes?'<h3 style="color:#c8975a;font-size:12pt;margin:16px 0 6px">メモ</h3><p style="font-size:11pt">'+recipe.notes+'</p>':'')
+      +nutrHtml
+      +'</div>';
+  }).join('');
+
+  // WordのMHT形式で出力
+  var wordHtml='<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" '
+    +'xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+    +'<head><meta charset="utf-8">'
+    +'<style>'
+    +'@page{size:A4;margin:20mm 20mm 20mm 20mm}'
+    +'body{font-family:"MS Mincho","游明朝",serif;font-size:11pt}'
+    +'</style></head><body>'+allPages+'</body></html>';
+
+  var blob=new Blob([wordHtml],{type:'application/msword;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  var fname=r?r.name.slice(0,20)+'_レシピ':'全レシピ';
+  a.download='WASSAWASSA_'+fname+'_'+new Date().toISOString().slice(0,10)+'.doc';
+  a.click();
+}
+
 // ========== EXCEL BACKUP ==========
 function exportAllDataExcel(){
   if(typeof XLSX==='undefined'){alert('少々お待ちください');return;}
