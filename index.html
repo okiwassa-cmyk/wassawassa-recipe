@@ -1918,9 +1918,34 @@ function exportSuppliersExcel(){
 }
 
 function exportRecipeWord(id){
-  alert("Word出力は現在メンテナンス中です");
+  var r=id?DB.recipes.find(function(x){return x.id===id;}):null;
+  var recipes=r?[r]:DB.recipes;
+  var body="";
+  recipes.forEach(function(recipe){
+    var cost=calcRecipeCost(recipe);
+    var ings=(recipe.ingredients||[]).map(function(ri){
+      var ing=DB.ingredients.find(function(i){return i.id===ri.ingredientId;});
+      return "<li>"+(ing?ing.name:"不明")+" "+ri.amount+" "+(ri.unit||"")+"</li>";
+    }).join("");
+    var steps=(recipe.steps||[]).map(function(s,i){
+      return "<p><b>"+(i+1)+".</b> "+s+"</p>";
+    }).join("");
+    body+="<div style=\"page-break-after:always\">";
+    body+="<h1>"+recipe.name+"</h1>";
+    body+="<p>"+(recipe.servings||1)+"人分"+(cost>0?" | 原価¥"+Math.round(cost):"")+"</p>";
+    if(recipe.description) body+="<p><i>"+recipe.description+"</i></p>";
+    if(ings) body+="<h2>材料</h2><ul>"+ings+"</ul>";
+    if(steps) body+="<h2>作り方</h2>"+steps;
+    if(recipe.notes) body+="<h2>メモ</h2><p>"+recipe.notes+"</p>";
+    body+="</div>";
+  });
+  var w="<html><head><meta charset=\"utf-8\"><style>body{font-family:serif;font-size:11pt}h1{border-bottom:2px solid #c8975a}h2{color:#c8975a;font-size:12pt}@page{size:A4;margin:20mm}</style></head><body>"+body+"</body></html>";
+  var blob=new Blob([w],{type:"application/msword;charset=utf-8"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="WASSAWASSA_"+(r?r.name.slice(0,20):"全レシピ")+"_"+new Date().toISOString().slice(0,10)+".doc";
+  a.click();
 }
-
 // ========== EXCEL BACKUP ==========
 function exportAllDataExcel(){
   if(typeof XLSX==='undefined'){alert('少々お待ちください');return;}
