@@ -510,7 +510,7 @@ function renderDashboard() {
       +'<div class="setup-step"><div class="setup-step-num">1</div><span><a href="https://supabase.com" target="_blank" style="color:#a8c5ac">supabase.com</a> で無料アカウントを作成</span></div>'
       +'<div class="setup-step"><div class="setup-step-num">2</div><span>新しいプロジェクトを作成（日本リージョン推奨）</span></div>'
       +'<div class="setup-step"><div class="setup-step-num">3</div><span>「設定・クラウド」ページでURL・APIキーを入力</span></div>'
-      +'<button class="btn btn-gold" style="margin-top:8px" onclick="showPage(\'settings\')">⚙️ クラウド設定を開く</button>'
+      +'<button class="btn btn-gold" style="margin-top:8px" onclick="showPage('settings')">⚙️ クラウド設定を開く</button>'
       +'</div>';
   }
 
@@ -569,10 +569,10 @@ function recipeCardHTML(r) {
   }
   var tagHtml = (r.tags&&r.tags.length) ? '<span>🏷 '+r.tags.slice(0,2).join(', ')+'</span>' : '';
   var photoHtml = r.photo ? '<img src="'+r.photo+'" alt="">' : '🍽️';
-  return '<div class="recipe-card" onclick="viewRecipe(\''+r.id+'\')">'
+  return '<div class="recipe-card" onclick="viewRecipe(''+r.id+'')">'
     + '<div class="recipe-card-img">'
     + photoHtml
-    + '<button class="recipe-card-fav" onclick="event.stopPropagation();toggleFav(\''+r.id+'\')">'+(r.favorite?'❤️':'🤍')+'</button>'
+    + '<button class="recipe-card-fav" onclick="event.stopPropagation();toggleFav(''+r.id+'')">'+(r.favorite?'❤️':'🤍')+'</button>'
     + '</div>'
     + '<div class="recipe-card-body">'
     + '<div class="recipe-card-category">'+(r.category||'')+' '+(r.coursePosition||'')+'</div>'
@@ -592,7 +592,7 @@ async function toggleFav(id) {
 
 function renderRecipes() {
   document.getElementById('topbar-actions').innerHTML=
-    '<button class="btn btn-secondary btn-sm" onclick="showPage(\'import\')">📥 取り込み</button>'
+    '<button class="btn btn-secondary btn-sm" onclick="showPage('import')">📥 取り込み</button>'
     +'<button class="btn btn-primary btn-sm" onclick="openRecipeForm()">＋ 新規レシピ</button>';
   var cats=[...new Set(DB.recipes.map(function(r){return r.category;}).filter(Boolean))];
   var tags=[...new Set(DB.recipes.flatMap(function(r){return r.tags||[];}))];
@@ -664,7 +664,7 @@ function viewRecipe(id) {
   var hasNutr=nutr.kcal>0||nutr.protein>0;
   var nutritionViewHtml=hasNutr
     ?'<div style="margin-top:12px">'
-      +'<button onclick="var e=document.getElementById(\'rv-nutrition\');e.style.display=e.style.display===\'none\'?\'block\':\'none\'" '
+      +'<button onclick="var e=document.getElementById('rv-nutrition');e.style.display=e.style.display==='none'?'block':'none'" '
       +'style="background:none;border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text-muted);margin-bottom:6px">🥗 栄養素を表示/非表示</button>'
       +'<div id="rv-nutrition" style="display:none">'+nutritionHTML(nutr,r.servings||1)+'</div>'
       +'</div>'
@@ -713,8 +713,8 @@ function viewRecipe(id) {
     '<div class="modal-header">'
     +'<div class="modal-title">'+r.name+'</div>'
     +'<div style="display:flex;gap:8px;align-items:center">'
-    +'<button class="btn btn-secondary btn-sm no-print" onclick="printRecipe(\''+r.id+'\')">🖨 印刷</button>'
-    +'<button class="btn btn-primary btn-sm no-print" onclick="closeModal();openRecipeForm(\''+r.id+'\')">✏️ 編集</button>'
+    +'<button class="btn btn-secondary btn-sm no-print" onclick="printRecipe(''+r.id+'')">🖨 印刷</button>'
+    +'<button class="btn btn-primary btn-sm no-print" onclick="closeModal();openRecipeForm(''+r.id+'')">✏️ 編集</button>'
     +'<button class="modal-close" onclick="closeModal()">✕</button>'
     +'</div></div>'
     +'<div class="modal-body">'
@@ -770,7 +770,7 @@ function openRecipeForm(id) {
           <div class="form-group"><label>カテゴリ</label><select class="form-control" id="rf-category"><option value="">選択してください</option>${catOpts}</select></div>
           <div class="form-group"><label>コースポジション</label><select class="form-control" id="rf-position"><option value="">選択してください</option>${posOpts}</select></div>
           <div class="form-group"><label>何人分</label><input type="number" id="rf-servings" value="${r?r.servings||1:1}" step="any" min="0" placeholder="例: 2"></div>
-          <div class="form-group"><label>出来上がり量（出汁・ソース等）</label><div style="display:flex;gap:6px"><input type="number" id="rf-yield" value="${r?r.yieldAmount||'':\''}" step="any" min="0" placeholder="例: 800"><input type="text" id="rf-yield-unit" value="${r?r.yieldUnit||'':\''}" placeholder="ml/g等" style="width:70px"></div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">入力すると単位原価が自動計算されます</div></div>
+          <div class="form-group"><label>出来上がり量（出汁・ソース等）</label><div style="display:flex;gap:6px"><input type="number" id="rf-yield" value="${r?r.yieldAmount||'':''}" step="any" min="0" placeholder="例: 800"><input type="text" id="rf-yield-unit" value="${r?r.yieldUnit||'':''}" placeholder="ml/g等" style="width:70px"></div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">入力すると単位原価が自動計算されます</div></div>
           <div class="form-group full"><label>説明・コンセプト</label><textarea id="rf-desc" placeholder="料理のコンセプトなど">${r?r.description||'':''}</textarea></div>
           <div class="form-group full"><label>タグ</label>
             <div style="display:flex;gap:8px;margin-bottom:6px"><input type="text" id="rf-tag-input" placeholder="タグを入力してEnter" style="flex:1" onkeydown="if(event.key==='Enter'){event.preventDefault();addTag()}"><button class="btn btn-secondary btn-sm" onclick="addTag()">追加</button></div>
@@ -1105,7 +1105,7 @@ function removeStep(idx){formSteps.splice(idx,1);renderStepRows();}
 
 function addTag(){var input=document.getElementById('rf-tag-input');var val=input.value.trim();if(val&&!formTags.includes(val)){formTags.push(val);renderTagList();}input.value='';}
 function removeTag(t){formTags=formTags.filter(function(x){return x!==t;});renderTagList();}
-function renderTagList(){var el=document.getElementById('rf-tags');if(!el)return;el.innerHTML=formTags.map(function(tag){return '<span class="tag">'+tag+'<span class="tag-remove" onclick="removeTag(\''+tag+'\')">✕</span></span>';}).join('');}
+function renderTagList(){var el=document.getElementById('rf-tags');if(!el)return;el.innerHTML=formTags.map(function(tag){return '<span class="tag">'+tag+'<span class="tag-remove" onclick="removeTag(''+tag+'')">✕</span></span>';}).join('');}
 function handlePhotoUpload(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{formPhoto=e.target.result;document.getElementById('rf-photo-preview').innerHTML=`<img src="${formPhoto}" style="max-width:100%;border-radius:8px;max-height:140px;object-fit:cover">`;};reader.readAsDataURL(file);}
 
 async function saveRecipe(){
@@ -1193,7 +1193,7 @@ function renderCourses() {
     html += '<div style="margin-bottom:28px">'
       +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">'
       +'<h2 style="font-size:20px;font-weight:400">'+cat+'</h2>'
-      +'<button class="btn btn-secondary btn-sm" onclick="openCourseForm(null,\''+cat+'\')">＋ 追加</button>'
+      +'<button class="btn btn-secondary btn-sm" onclick="openCourseForm(null,''+cat+'')">＋ 追加</button>'
       +'</div>'
       +(list.length
         ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">'+list.map(function(c){return courseCardHTML(c);}).join('')+'</div>'
@@ -1216,11 +1216,11 @@ function courseCardHTML(c) {
   }).join('');
   return '<div class="card" style="margin:0">'
     +'<div class="card-header">'
-    +'<div style="cursor:pointer;flex:1" onclick="openCourseForm(\''+c.id+'\')" ><div class="card-title">'+c.name+'</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+(c.dishes?c.dishes.length:0)+'品構成</div></div>'
+    +'<div style="cursor:pointer;flex:1" onclick="openCourseForm(''+c.id+'')" ><div class="card-title">'+c.name+'</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+(c.dishes?c.dishes.length:0)+'品構成</div></div>'
     +'<div style="display:flex;align-items:center;gap:8px">'
     +(totalCost?'<div style="font-size:15px">原価 '+formatYen(totalCost)+'</div>':'')
   +(courseNutr.kcal>0?'<div style="font-size:12px;color:var(--text-muted)">'+Math.round(courseNutr.kcal)+'kcal</div>':'')
-    +'<button class="btn btn-sm no-print" style="background:#e74c3c;color:white;padding:4px 10px" onclick="event.stopPropagation();deleteCourse(\''+c.id+'\')" >🗑</button>'
+    +'<button class="btn btn-sm no-print" style="background:#e74c3c;color:white;padding:4px 10px" onclick="event.stopPropagation();deleteCourse(''+c.id+'')" >🗑</button>'
     +'</div></div>'
     +dishRows+'</div>';
 }
@@ -1388,7 +1388,7 @@ function openIngredientForm(id){
     +'<option value="incl"'+((i&&i.taxType==='incl')?' selected':'')+'>税込価格で入力</option>';
   var deleteHtml='';
   if(i){
-    var escapedId=i.id.replace(/'/g,"\'");
+    var escapedId=i.id.replace(/'/g,"'");
     deleteHtml='<button class="btn btn-danger btn-sm" onclick="deleteIngredient('+JSON.stringify(i.id)+')">🗑 削除</button>';
   }
   var modalHtml=
@@ -1462,7 +1462,7 @@ function openIngredientForm(id){
           +'<span style="font-size:12px">=</span>'
           +'<input type="number" class="uc-amount" value="'+uc.amount+'" placeholder="量" step="0.01" style="width:70px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px">'
           +'<span style="font-size:12px;color:var(--text-muted)">'+(i?i.unit:'')+'</span>'
-          +'<button type="button" onclick="this.closest(\'.uc-row\').remove()" style="font-size:10px;padding:1px 6px;background:#e74c3c;color:#fff;border:none;border-radius:3px;cursor:pointer">✕</button>'
+          +'<button type="button" onclick="this.closest('.uc-row').remove()" style="font-size:10px;padding:1px 6px;background:#e74c3c;color:#fff;border:none;border-radius:3px;cursor:pointer">✕</button>'
           +'</div>';
       }).join('')
       :'')
@@ -2144,7 +2144,7 @@ function renderInventoryTable(){
         +'<td style="font-size:12px">'+(i.category||'-')+'</td>'
         +'<td>'+i.unit+'</td>'
         +'<td class="td-num">'+formatYen(i.unitPrice)+'</td>'
-        +'<td class="td-num"><input type="number" value="'+(i.stock||0)+'" min="0" step="any" style="width:70px;text-align:right;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--white)" onchange="updateStock(\''+i.id+'\',this.value,true)"></td>'
+        +'<td class="td-num"><input type="number" value="'+(i.stock||0)+'" min="0" step="any" style="width:70px;text-align:right;padding:4px 8px;border:1px solid var(--border);border-radius:5px;background:var(--white)" onchange="updateStock(''+i.id+'',this.value,true)"></td>'
         +'<td class="td-num">'+formatYen(stockVal)+'</td>'
         +'</tr>';
     }).join('')+'</tbody>'
@@ -2250,8 +2250,8 @@ function showInventoryDetail(snapId){
     +'</div>'
     +'<div class="modal-body">'
     +'<div style="display:flex;gap:8px;margin-bottom:14px;justify-content:flex-end">'
-    +'<button class="btn btn-secondary btn-sm" onclick="printInventorySnapshot(\''+snapId+'\');closeModal()">🖨 印刷</button>'
-    +'<button class="btn btn-secondary btn-sm" onclick="exportInventorySnapshotExcel(\''+snapId+'\');closeModal()">📊 Excel</button>'
+    +'<button class="btn btn-secondary btn-sm" onclick="printInventorySnapshot(''+snapId+'');closeModal()">🖨 印刷</button>'
+    +'<button class="btn btn-secondary btn-sm" onclick="exportInventorySnapshotExcel(''+snapId+'');closeModal()">📊 Excel</button>'
     +'</div>'
     +'<div class="table-wrap"><table>'
     +'<thead><tr><th>日付</th><th>食材名</th><th>カテゴリ</th><th>単位</th><th class="td-num">税抜単価</th><th class="td-num">現在庫</th><th class="td-num">在庫金額(税込)</th></tr></thead>'
@@ -2359,9 +2359,9 @@ function renderImport(){
   document.getElementById('topbar-actions').innerHTML='';
   var ttab=importTab;
   var tabHtml=''
-    +'<div class="import-tab'+(ttab==='text'?' active':'')+'" onclick="switchImportTab(\'text\')">📝 テキスト</div>'
-    +'<div class="import-tab'+(ttab==='url'?' active':'')+'" onclick="switchImportTab(\'url\')">🔗 URL</div>'
-    +'<div class="import-tab'+(ttab==='photo'?' active':'')+'" onclick="switchImportTab(\'photo\')">📷 写真</div>';
+    +'<div class="import-tab'+(ttab==='text'?' active':'')+'" onclick="switchImportTab('text')">📝 テキスト</div>'
+    +'<div class="import-tab'+(ttab==='url'?' active':'')+'" onclick="switchImportTab('url')">🔗 URL</div>'
+    +'<div class="import-tab'+(ttab==='photo'?' active':'')+'" onclick="switchImportTab('photo')">📷 写真</div>';
   document.getElementById('content').innerHTML=
     '<div class="card">'
     +'<div class="card-header"><div class="card-title">レシピ取り込み</div></div>'
@@ -2378,7 +2378,7 @@ function renderImport(){
     +'<button class="btn btn-primary" onclick="importFromUrl()">📥 取り込む</button>'
     +'</div>'
     +'<div id="import-tab-photo"'+(ttab!=='photo'?' class="hidden"':'')+' style="margin-top:16px">'
-    +'<div class="photo-drop" onclick="document.getElementById(\'import-photo-input\').click()">'
+    +'<div class="photo-drop" onclick="document.getElementById('import-photo-input').click()">'
     +'<div class="photo-drop-icon">📷</div><div>本・雑誌のレシピページを撮影してアップロード</div>'
     +'<div style="font-size:11px;color:var(--text-muted);margin-top:4px">AIが写真からレシピを読み取ります</div>'
     +'<input type="file" id="import-photo-input" accept="image/*" style="display:none" onchange="importFromPhoto(this)">'
@@ -2736,7 +2736,7 @@ function repairJson(str){
   for(var i=0;i<s.length;i++){
     var c=s[i];
     if(esc){esc=false;continue;}
-    if(c==='\\'){esc=true;continue;}
+    if(c==='\'){esc=true;continue;}
     if(c==='"'){inStr=!inStr;continue;}
     if(inStr) continue;
     if(c==='{') opens.push('}');
