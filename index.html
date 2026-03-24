@@ -4103,7 +4103,7 @@ function getStoredPassword() {
 }
 
 function isLoggedIn() {
-  return sessionStorage.getItem('ww_auth') === 'true';
+  return localStorage.getItem('ww_auth') === 'true';
 }
 
 function showLoginScreen() {
@@ -4136,7 +4136,7 @@ function showLoginScreen() {
 function doLogin() {
   const pw = document.getElementById('login-pw').value;
   if (pw === getStoredPassword()) {
-    sessionStorage.setItem('ww_auth', 'true');
+    localStorage.setItem('ww_auth', 'true');
     location.reload();
   } else {
     document.getElementById('login-error').textContent = 'パスワードが違います';
@@ -4146,7 +4146,7 @@ function doLogin() {
 }
 
 function doLogout() {
-  sessionStorage.removeItem('ww_auth');
+  localStorage.removeItem('ww_auth');
   location.reload();
 }
 
