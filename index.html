@@ -3936,8 +3936,8 @@ async function syncToCloud(){
   }
 }
 
-async function syncFromCloud(){
-  if(!useCloud||!sbClient) return;
+async function syncFromCloud(skipRefresh){
+  if(!useCloud||!sbClient){ showPage('dashboard'); return; }
   try{
     const [ri,rr,rc]=[
       await sbClient.from('ingredients').select('*'),
@@ -3949,7 +3949,8 @@ async function syncFromCloud(){
     if(!rr.error && rr.data && rr.data.length > 0) DB.recipes=rr.data;
     if(!rc.error && rc.data && rc.data.length > 0) DB.courses=rc.data;
     saveLocal();
-    if(typeof currentPage !== 'undefined' && currentPage) showPage(currentPage);
+    // 起動時はskipRefresh=trueで呼ばれるのでshowPageしない（呼び元が制御）
+    if(!skipRefresh && typeof currentPage !== 'undefined' && currentPage) showPage(currentPage);
     const el=document.getElementById('settings-result');
     if(el) el.innerHTML='<div style="padding:10px;background:#d4edda;border-radius:8px;font-size:13px;color:#1e7e34">✅ 同期完了 (' + new Date().toLocaleTimeString('ja-JP') + ')</div>';
   }catch(e){ console.error('Sync error',e); }
@@ -4151,43 +4152,53 @@ function doLogout() {
 
 // ========== INIT ==========
 loadLocal();
-if (!isLoggedIn()) {
-  document.addEventListener('DOMContentLoaded', showLoginScreen);
-  if (document.readyState !== 'loading') showLoginScreen();
-} else {
-  document.getElementById('sidebar').style.display = '';
-  if(DB.settings?.supabaseUrl && DB.settings?.supabaseKey){
-    initSupabase(DB.settings.supabaseUrl, DB.settings.supabaseKey);
-    // Supabaseから同期してからページ表示（ローカルキャッシュの古さ問題を解消）
-    var _loadingEl = document.getElementById('loading-overlay');
-    if(_loadingEl) _loadingEl.style.display = 'flex';
-    // タイムアウト付きでSupabase同期（最大8秒待つ）
-    var _syncDone = false;
-    var _syncTimeout = setTimeout(function(){
-      if(!_syncDone){
-        _syncDone = true;
-        if(_loadingEl) _loadingEl.style.display = 'none';
-        showPage('dashboard');
-      }
-    }, 8000);
-    syncFromCloud().then(function(){
-      if(!_syncDone){
-        _syncDone = true;
-        clearTimeout(_syncTimeout);
-        if(_loadingEl) _loadingEl.style.display = 'none';
-        showPage('dashboard');
-      }
-    }).catch(function(){
-      if(!_syncDone){
-        _syncDone = true;
-        clearTimeout(_syncTimeout);
-        if(_loadingEl) _loadingEl.style.display = 'none';
-        showPage('dashboard');
-      }
-    });
+function _initApp(){
+  if (!isLoggedIn()) {
+    showLoginScreen();
   } else {
-    showPage('dashboard');
+    document.getElementById('sidebar').style.display = '';
+    if(DB.settings?.supabaseUrl && DB.settings?.supabaseKey){
+      initSupabase(DB.settings.supabaseUrl, DB.settings.supabaseKey);
+      var _loadingEl = document.getElementById('loading-overlay');
+      if(_loadingEl) _loadingEl.style.display = 'flex';
+      var _syncDone = false;
+      var _syncTimeout = setTimeout(function(){
+        if(!_syncDone){
+          _syncDone = true;
+          if(_loadingEl) _loadingEl.style.display = 'none';
+          showPage('dashboard');
+        }
+      }, 8000);
+      var _syncPromise = syncFromCloud(true);
+      if(!_syncPromise || typeof _syncPromise.then !== 'function'){
+        if(!_syncDone){ _syncDone=true; clearTimeout(_syncTimeout); if(_loadingEl) _loadingEl.style.display='none'; showPage('dashboard'); }
+      } else {
+      _syncPromise.then(function(){
+        if(!_syncDone){
+          _syncDone = true;
+          clearTimeout(_syncTimeout);
+          if(_loadingEl) _loadingEl.style.display = 'none';
+          showPage('dashboard');
+        }
+      }).catch(function(){
+        if(!_syncDone){
+          _syncDone = true;
+          clearTimeout(_syncTimeout);
+          if(_loadingEl) _loadingEl.style.display = 'none';
+          showPage('dashboard');
+        }
+      });
+      } // end if _syncPromise
+    } else {
+      showPage('dashboard');
+    }
   }
+}
+// DOMが準備できてから起動
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', _initApp);
+} else {
+  _initApp();
 }
 </script>
 </body>
