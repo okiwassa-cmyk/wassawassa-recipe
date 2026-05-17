@@ -1263,7 +1263,7 @@ function viewRecipe(id, scale) {
   var r = DB.recipes.find(function(x){return x.id===id;});
   if (!r) return;
   // 栄養素計算
-  var nutr=calcRecipeNutrition(r);
+  var nutr=getRecipeNutrition(r);
   var hasNutr=nutr.kcal>0||nutr.protein>0;
   var nutritionViewHtml=hasNutr
     ?'<div style="margin-top:12px">'
@@ -1432,7 +1432,7 @@ function openRecipeForm(id) {
               </div>
             </div>
           </div>
-          <div class="form-group"><label>何人分</label><input type="number" id="rf-servings" value="${r?r.servings||1:1}" step="any" min="0" placeholder="例: 2" oninput="updatePerServingHint();calcPerServingFromYieldAuto()"></div>
+          <div class="form-group"><label>何人分</label><input type="number" id="rf-servings" value="${r?r.servings||1:1}" step="any" min="0" placeholder="例: 2" oninput="updatePerServingHint();calcPerServingFromYieldAuto();updateAllergenNutritionPreview()"></div>
           <div class="form-group"><label>出来上がり量</label>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               <input type="number" id="rf-yield" value="${r?r.yield||'':''}" step="any" min="0" placeholder="例: 800" style="flex:1;min-width:80px">
@@ -1488,6 +1488,11 @@ function openRecipeForm(id) {
           <button class="btn btn-secondary btn-sm" onclick="addSpaceRow()" style="color:var(--text-muted);font-size:11px">＋ 空白行</button>
         </div>
         <div id="rf-cost-preview" style="margin-top:14px;padding:10px;background:var(--bg2);border-radius:8px;font-size:13px"></div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="analyzeRecipeWithAI()" id="rf-ai-analyze-btn">🤖 AIでアレルゲン・栄養素を解析</button>
+          <span id="rf-ai-analyze-status" style="font-size:12px;color:var(--text-muted)"></span>
+        </div>
+        <div id="rf-allergen-nutrition-preview" style="margin-top:8px"></div>
         ${DB.ingredients.length===0?'<div style="margin-top:10px;padding:10px;background:#fff3cd;border-radius:6px;font-size:12px">⚠️ 食材が未登録です。「食材・単価管理」から先に食材を追加してください。</div>':''}
       </div>
       <div id="recipe-tab-steps" class="hidden">
@@ -2546,6 +2551,84 @@ function updateCostPreview(){
   }
 }
 
+async function analyzeRecipeWithAI(){
+  if(!DB.settings.anthropicKey){alert('設定タブでAnthropicのAPIキーを入力してください');return;}
+  var recipeName=document.getElementById('rf-name')?.value.trim()||'';
+  var servings=parseInt(document.getElementById('rf-servings')?.value||1)||1;
+  // 食材リスト作成（セクション除く）
+  var ingList=formIngredients.filter(function(fi){return !fi._isSection;}).map(function(fi){
+    var name=fi._searchName||(DB.ingredients.find(function(i){return i.id===fi.ingredientId;})||{}).name||'';
+    if(!name) return null;
+    return (fi.amount?fi.amount+'':'')+' '+(fi.unit||'')+' '+name;
+  }).filter(Boolean);
+  if(!recipeName&&ingList.length===0){alert('料理名または食材を入力してください');return;}
+  var btn=document.getElementById('rf-ai-analyze-btn');
+  var status=document.getElementById('rf-ai-analyze-status');
+  var el=document.getElementById('rf-allergen-nutrition-preview');
+  if(btn) btn.disabled=true;
+  if(status) status.textContent='⏳ 解析中...';
+  try{
+    var prompt='以下の料理について、アレルゲン（特定原材料28品目）と栄養素をJSONのみで回答してください（説明不要）。\n'
+      +'料理名: '+(recipeName||'不明')+'\n'
+      +'材料（'+servings+'人分）:\n'+ingList.join('\n')+'\n\n'
+      +'{"allergens":["egg/milk/wheat/shrimp/crab/peanut/soba/abalone/squid/salmon/orange/cashew/kiwi/beef/walnut/sesame/salmon2/mackerel/soy/chicken/banana/pork/matsutake/peach/yam/apple/gelatin/almond から該当するもののみ"],'
+      +'"kcal":数値,"protein":数値,"fat":数値,"carbs":数値,"salt":数値}\n'
+      +'※栄養素は'+servings+'人分合計。数値は小数点1桁まで。';
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:512,messages:[{role:'user',content:prompt}]})
+    });
+    var json=await res.json();
+    var text=(json.content&&json.content[0]&&json.content[0].text)||'';
+    var match=text.match(/\{[\s\S]*\}/);
+    if(!match) throw new Error('解析結果を取得できませんでした');
+    var data=JSON.parse(match[0]);
+    var allergenIds=data.allergens||[];
+    var nutr={kcal:data.kcal||0,protein:data.protein||0,fat:data.fat||0,carbs:data.carbs||0,salt:data.salt||0};
+    // アレルゲンタブにも反映
+    formAllergens=allergenIds.filter(function(id){return ALLERGENS.some(function(a){return a.id===id;});});
+    renderAllergenGrid();
+    // プレビュー表示
+    var html='';
+    if(allergenIds.length>0){
+      html+='<div style="padding:8px 12px;background:#fff8f0;border:1px solid #f0d0a0;border-radius:8px;margin-bottom:6px">'
+        +'<div style="font-size:11px;font-weight:600;color:#c07800;margin-bottom:4px">⚠️ アレルゲン（AI解析）</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:4px">'
+        +allergenIds.map(function(id){
+          var a=ALLERGENS.find(function(x){return x.id===id;});
+          return a?'<span style="font-size:12px;background:#fff3e0;padding:2px 8px;border-radius:10px;border:1px solid #f0d0a0">'+a.emoji+' '+a.label+'</span>':id;
+        }).join('')+'</div></div>';
+    } else {
+      html+='<div style="padding:8px 12px;background:#f0fff4;border:1px solid #a0d0a0;border-radius:8px;margin-bottom:6px;font-size:12px;color:#2e7d32">✅ アレルゲンなし（AI解析）</div>';
+    }
+    var hasNutr=nutr.kcal>0||nutr.protein>0;
+    if(hasNutr){
+      html+='<div style="padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--text-light);margin-bottom:6px">🥗 栄養素（AI解析・'+servings+'人分合計）</div>'
+        +'<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;text-align:center">'
+        +'<div style="background:var(--white);border-radius:6px;padding:6px"><div style="font-size:9px;color:var(--text-muted)">カロリー</div><div style="font-weight:700;font-size:13px;color:var(--accent-dark)">'+Math.round(nutr.kcal)+'<span style="font-size:9px">kcal</span></div></div>'
+        +'<div style="background:var(--white);border-radius:6px;padding:6px"><div style="font-size:9px;color:var(--text-muted)">タンパク質</div><div style="font-weight:700;font-size:13px">'+(Math.round(nutr.protein*10)/10)+'<span style="font-size:9px">g</span></div></div>'
+        +'<div style="background:var(--white);border-radius:6px;padding:6px"><div style="font-size:9px;color:var(--text-muted)">脂質</div><div style="font-weight:700;font-size:13px">'+(Math.round(nutr.fat*10)/10)+'<span style="font-size:9px">g</span></div></div>'
+        +'<div style="background:var(--white);border-radius:6px;padding:6px"><div style="font-size:9px;color:var(--text-muted)">炭水化物</div><div style="font-weight:700;font-size:13px">'+(Math.round(nutr.carbs*10)/10)+'<span style="font-size:9px">g</span></div></div>'
+        +'<div style="background:var(--white);border-radius:6px;padding:6px"><div style="font-size:9px;color:var(--text-muted)">塩分</div><div style="font-weight:700;font-size:13px">'+(Math.round(nutr.salt*10)/10)+'<span style="font-size:9px">g</span></div></div>'
+        +'</div>'
+        +(servings>1?'<div style="font-size:10px;color:var(--text-muted);margin-top:4px;text-align:right">1人分: '+Math.round(nutr.kcal/servings)+'kcal / タンパク質'+(Math.round(nutr.protein/servings*10)/10)+'g</div>':'')
+        +'</div>';
+    }
+    if(el) el.innerHTML=html;
+    if(status) status.textContent='';
+    // 解析結果をレシピデータに保存（formに保持）
+    window._aiAnalyzedAllergens=allergenIds;
+    window._aiAnalyzedNutrition=nutr;
+  } catch(e){
+    if(el) el.innerHTML='<div style="padding:8px;background:#f8d7da;border-radius:6px;font-size:12px">解析エラー: '+e.message+'</div>';
+    if(status) status.textContent='';
+  } finally {
+    if(btn) btn.disabled=false;
+  }
+}
+
 function renderStepRows(){
   const el=document.getElementById('rf-steps-list');
   if(!el) return;
@@ -2623,7 +2706,13 @@ async function saveRecipe(){
     })(),
     favorite:editingRecipeId?(DB.recipes.find(r=>r.id===editingRecipeId)?.favorite||false):false,
     staffVisible:document.getElementById('rf-staff-visible')?.checked !== false,
+    kcal: window._aiAnalyzedNutrition?.kcal||null,
+    protein: window._aiAnalyzedNutrition?.protein||null,
+    fat: window._aiAnalyzedNutrition?.fat||null,
+    carbs: window._aiAnalyzedNutrition?.carbs||null,
+    salt: window._aiAnalyzedNutrition?.salt||null,
   };
+  window._aiAnalyzedAllergens=null; window._aiAnalyzedNutrition=null;
   await dbUpsert('recipes',data);
   closeModal(); showPage(currentPage);
 }
@@ -3864,26 +3953,6 @@ function openIngredientForm(id, initialName){
     +'<datalist id="supplier-list">'+getSupplierOptions()+'</datalist></div>'
     +'<div class="form-group full"><label>商品名（パッケージ表記など）</label>'
     +'<input type="text" id="if-product-name" value="'+(i?i.productName||'':'')+'" placeholder="例: ○○農園 特選小麦粉"></div>'
-    +'<div class="form-group full">'
-    +'<div style="margin-bottom:4px"><label style="margin:0">アレルゲン・食事制限（該当するものにチェック）</label>'    +'<div id="if-nutrition-result" style="font-size:11px;color:var(--accent-dark);min-height:14px;margin-bottom:4px"></div>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin-top:6px">'
-    +ALLERGENS.map(function(a){
-      var chk=i&&i.allergens&&i.allergens.includes(a.id);
-      return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">'
-        +'<input type="checkbox" value="'+a.id+'" class="if-allergen-cb" '+(chk?'checked':'')+' style="width:14px;height:14px">'
-        +a.emoji+' '+a.label+'</label>';
-    }).join('')
-    +'</div>'
-    +'<div style="margin-top:8px"><label style="font-size:11px;color:var(--text-muted)">食事制限区分（複数選択可）</label>'
-    +'<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin-top:4px">'
-    +DIET_TYPES.map(function(d){
-      var chk=i&&i.dietFlags&&i.dietFlags.includes(d.id);
-      return '<label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer" title="'+d.desc+'">'
-        +'<input type="checkbox" value="'+d.id+'" class="if-diet-cb" '+(chk?'checked':'')+' style="width:14px;height:14px">'
-        +d.label+'</label>';
-    }).join('')
-    +'</div></div>'
-    +'</div>'
     +(i&&isCountUnit(i.unit)?
       '<div class="form-group full" style="background:#f0f8f0;border:2px solid #4a7c59;border-radius:10px;padding:12px;margin-bottom:8px">'
       +'<div style="font-size:13px;font-weight:600;color:#2d6a4f;margin-bottom:8px">⚖️ g換算（材料から計算に必要）</div>'
@@ -4212,8 +4281,6 @@ async function saveIngredient(id){
     unitPrice=rawPrice!==undefined?(taxType==='incl'?taxExcl(rawPrice):rawPrice):undefined;
   }
   var stockVal='';  // 在庫数は棚卸しページのみで管理
-  var ingAllergens=[...document.querySelectorAll('.if-allergen-cb:checked')].map(function(cb){return cb.value;});
-  var ingDietFlags=[...document.querySelectorAll('.if-diet-cb:checked')].map(function(cb){return cb.value;});
   var data={id:id||genId(),name:name,unit:unit,
     category:document.getElementById('if-category').value,
     unitPrice:unitPrice,taxType:taxType,
@@ -4221,8 +4288,6 @@ async function saveIngredient(id){
     stock:stockVal!==''?parseFloat(stockVal):undefined,
     supplier:document.getElementById('if-supplier').value,
     productName:document.getElementById('if-product-name').value,
-    allergens:ingAllergens,
-    dietFlags:ingDietFlags,
     hideFromRecipe:document.getElementById('if-hide-from-recipe').checked,
     unitConversions:(function(){
       var convs = getUnitConversions();
@@ -5447,6 +5512,14 @@ function calcRecipeNutrition(recipe){
   return result;
 }
 
+// レシピの栄養素を取得（AI解析済みの値を優先、なければ食材DBから計算）
+function getRecipeNutrition(r){
+  if(r.kcal>0||r.protein>0||r.fat>0||r.carbs>0||r.salt>0){
+    return {kcal:r.kcal||0,protein:r.protein||0,fat:r.fat||0,carbs:r.carbs||0,salt:r.salt||0};
+  }
+  return calcRecipeNutrition(r);
+}
+
 function calcCourseNutrition(course){
   var result={kcal:0,protein:0,fat:0,carbs:0,salt:0};
   if(!course.dishes||!course.dishes.length) return result;
@@ -5460,7 +5533,6 @@ function calcCourseNutrition(course){
         if(e._type==='ingredient'||(e.ingredientId&&!e.recipeId)){
           var ing=DB.ingredients.find(function(x){return x.id===e.ingredientId;});
           if(!ing) return;
-          // amtをgに換算してから/100
           var gMlUnits=['g','kg','ml','cc','l','dl','グラム','リットル'];
           var convs=ing.unitConversions||[];
           var iUnit=normUnit((ing.unit||'').trim());
@@ -5494,10 +5566,10 @@ function calcCourseNutrition(course){
           if(ing.salt) result.salt+=ing.salt*r100;
           return;
         }
-        // レシピ参照の場合
+        // レシピ参照の場合（AI解析値優先）
         var r=DB.recipes.find(function(x){return x.id===e.recipeId;});
         if(!r) return;
-        var n=calcRecipeNutrition(r);
+        var n=getRecipeNutrition(r);
         var servings=parseFloat(r.servings||1);
         var ratio=1;
         if(['人分','人','人前','portion'].includes(unit)){
@@ -5512,10 +5584,10 @@ function calcCourseNutrition(course){
       });
       return;
     }
-    // 単品レシピ: 1人分として計算
+    // 単品レシピ: 1人分として計算（AI解析値優先）
     var r=DB.recipes.find(function(x){return x.id===d.recipeId;});
     if(!r) return;
-    var n=calcRecipeNutrition(r);
+    var n=getRecipeNutrition(r);
     var servings=parseFloat(r.servings||1);
     var ratio=servings>0?1/servings:1;
     result.kcal+=n.kcal*ratio; result.protein+=n.protein*ratio;
@@ -5559,70 +5631,39 @@ function nutritionPrintHTML(n, servings){
 }
 
 
-// 単体食材のアレルゲン・栄養素・単位換算をAIで取得
-function autoFetchIfReady(){
-  var n=document.getElementById('if-name')?.value.trim();
-  var u=document.getElementById('if-unit')?.value.trim();
-  var hasNutrition=document.getElementById('if-kcal')?.value;
-  if(n&&u&&!hasNutrition) fetchIngredientInfoAll();
-}
+// 食材の単位換算をAIで取得
 async function fetchIngredientInfoAll(){
   if(!DB.settings.anthropicKey){alert('APIキーが設定されていません');return;}
   var name = document.getElementById('if-name')?.value.trim();
   var unit = document.getElementById('if-unit')?.value.trim();
   if(!name||!unit){alert('先に食材名と単位を入力してください');return;}
-  // 両方の結果欄に進捗表示
-  var el1 = document.getElementById('if-nutrition-result');
   var el2 = document.getElementById('if-unit-conv-result');
-  if(el1) el1.innerHTML = '⏳ AIが取得中...';
-  if(el2) el2.innerHTML = '';
+  if(el2) el2.innerHTML = '⏳ AIが取得中...';
   var isCount = isCountUnit(unit);
   try{
-    var prompt = '「'+name+'」(単位:'+unit+')について以下をJSONのみで回答してください（説明不要）。\n'
-      + '{"kcal":数値,"protein":数値,"fat":数値,"carbs":数値,"salt":数値,'
-      + '"allergens":["egg/milk/wheat/shrimp/crab/peanut/soba/abalone/squid/salmon/orange/cashew/kiwi/beef/walnut/sesame/salmon2/mackerel/soy/chicken/banana/pork/matsutake/peach/yam/apple/gelatin/almond から該当するもののみ"],'
-      + '"dietFlags":["meat/fish/dairy/egg/gluten から該当するもののみ"],';
+    var prompt;
     if(isCount){
-      // 個数単位の場合: g/kg換算のみ（単位換算テーブルは不要）
-      prompt += '"gPerUnit":数値(1'+unit+'あたりのグラム数)}';
+      prompt = '「'+name+'」(単位:'+unit+')について以下をJSONのみで回答してください（説明不要）。\n'
+        + '{"gPerUnit":数値(1'+unit+'あたりのグラム数)}';
     } else {
-      // 重量・容量単位の場合: 単位換算テーブルのみ
-      prompt += '"unitConversions":[{"unit":"大さじ","amount":数値}等 ※'+unit+'に換算した数値。使いそうな単位のみ]}';
+      prompt = '「'+name+'」(単位:'+unit+')の単位換算をJSONのみで回答してください（説明不要）。\n'
+        + '{"unitConversions":[{"unit":"大さじ","amount":数値}等 ※'+unit+'に換算した数値。使いそうな単位のみ]}';
     }
     var res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey,
         'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
+      body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:512,
         messages:[{role:'user',content:prompt}]})
     });
     var data = await res.json();
     var text = (data.content&&data.content[0]&&data.content[0].text)||'';
     var clean = text.replace(/```json\s*/g,'').replace(/```/g,'').trim();
     var info = JSON.parse(clean);
-    // アレルゲン
-    if(info.allergens){
-      document.querySelectorAll('.if-allergen-cb').forEach(function(cb){
-        cb.checked = info.allergens.includes(cb.value);
-      });
-    }
-    // 食事制限
-    if(info.dietFlags){
-      document.querySelectorAll('.if-diet-cb').forEach(function(cb){
-        cb.checked = info.dietFlags.includes(cb.value);
-      });
-    }
-    // 栄養素
-    ['kcal','protein','fat','carbs','salt'].forEach(function(k){
-      var el = document.getElementById('if-'+k);
-      if(el && info[k]!==undefined) el.value = info[k];
-    });
-    // g換算（個数単位の場合）
     if(isCount && info.gPerUnit && info.gPerUnit > 0){
       var gEl = document.getElementById('if-g-conv');
       if(gEl) gEl.value = info.gPerUnit;
     }
-    // 単位換算テーブル（重量・容量単位の場合）
     if(!isCount && info.unitConversions && info.unitConversions.length){
       var convList = document.getElementById('if-unit-conv-list');
       if(convList){
@@ -5630,65 +5671,9 @@ async function fetchIngredientInfoAll(){
         info.unitConversions.forEach(function(uc){addUnitConvRow(uc.unit,uc.amount);});
       }
     }
-    var msg = '✅ 取得完了！内容を確認して保存してください';
-    if(el1) el1.innerHTML = msg;
-    if(el2) el2.innerHTML = msg;
+    if(el2) el2.innerHTML = '✅ 取得完了！';
   }catch(e){
-    var errMsg = '❌ エラー: '+e.message;
-    if(el1) el1.innerHTML = errMsg;
-    if(el2) el2.innerHTML = errMsg;
-  }
-}
-
-async function fetchNutritionSingle(){
-  if(!DB.settings.anthropicKey){alert('APIキーが設定されていません');return;}
-  var name = document.getElementById('if-name')?.value.trim();
-  var unit = document.getElementById('if-unit')?.value.trim();
-  if(!name||!unit){alert('先に食材名と単位を入力してください');return;}
-  var el = document.getElementById('if-nutrition-result');
-  if(el) el.innerHTML = '⏳ AIが取得中...';
-  try{
-    var res = await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey,
-        'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2000,
-        messages:[{role:'user',content:'「'+name+'」(単位:'+unit+')の栄養素・アレルゲン・食事制限・単位換算をJSONのみで回答してください（説明不要）。\n'
-          +'形式: {"kcal":数値,"protein":数値,"fat":数値,"carbs":数値,"salt":数値,'
-          +'"allergens":["egg/milk/wheat/shrimp/crab/peanut/soba/abalone/squid/salmon/orange/cashew/kiwi/beef/walnut/sesame/salmon2/mackerel/soy/chicken/banana/pork/matsutake/peach/yam/apple/gelatin/almond から該当するもののみ"],'
-          +'"dietFlags":["meat/fish/dairy/egg/gluten から該当するもののみ"],'
-          +'"unitConversions":[{"unit":"大さじ","amount":数値}等 ※基本単位1あたりの換算値。使いそうな単位のみ]}'}]
-      })
-    });
-    var data = await res.json();
-    var text = (data.content&&data.content[0]&&data.content[0].text)||'';
-    var clean = text.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
-    var info = JSON.parse(clean);
-    document.querySelectorAll('.if-allergen-cb').forEach(function(cb){
-      cb.checked=info.allergens?info.allergens.includes(cb.value):cb.checked;
-    });
-    document.querySelectorAll('.if-diet-cb').forEach(function(cb){
-      cb.checked=info.dietFlags?info.dietFlags.includes(cb.value):cb.checked;
-    });
-    // 栄養素フィールドを更新
-    ['kcal','protein','fat','carbs','salt'].forEach(function(k){
-      var el2 = document.getElementById('if-'+k);
-      if(el2 && info[k]!==undefined) el2.value = info[k];
-    });
-    // 単位換算テーブルを更新（既存がなければ追加）
-    if(info.unitConversions&&info.unitConversions.length){
-      var list = document.getElementById('if-unit-conv-list');
-      if(list){
-        // 既存のuc-rowをクリアして新しい換算で上書き
-        list.querySelectorAll('.uc-row').forEach(function(r){ r.remove(); });
-        info.unitConversions.forEach(function(uc){
-          addUnitConvRow(uc.unit, uc.amount);
-        });
-      }
-    }
-    if(el) el.innerHTML = '✅ 取得完了！内容を確認して保存してください';
-  }catch(e){
-    if(el) el.innerHTML = '❌ エラー: '+e.message;
+    if(el2) el2.innerHTML = '❌ エラー: '+e.message;
   }
 }
 
@@ -5742,10 +5727,8 @@ function toggleVoiceInput(btnId, targetId){
 async function fetchNutritionForAll(){
   if(!DB.settings.anthropicKey){alert('APIキーが設定されていません');return;}
   var ings=DB.ingredients.filter(function(i){
-    var noKcal=!i.kcal||i.kcal===0;
-    var noAllergens=!i.allergens||!i.allergens.length;
     var noConversions=!i.unitConversions||!i.unitConversions.length;
-    return noKcal||noAllergens||noConversions;
+    return noConversions;
   });
   if(!ings.length){alert('全食材の情報は登録済みです');return;}
   var el=document.getElementById('nutrition-fetch-result');
@@ -5765,11 +5748,9 @@ async function fetchNutritionForAll(){
         method:'POST',
         headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey,
           'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4096,
-          messages:[{role:'user',content:'以下の食材について、それぞれの情報を日本語でJSONのみで回答してください（説明不要・コードブロック不要）。必ず全件回答してください。\n'
-            +'形式: [{"name":"食材名","kcal":数値,"protein":数値,"fat":数値,"carbs":数値,"salt":数値,'
-            +'"allergens":["egg/milk/wheat/shrimp/crab/peanut/soba/abalone/squid/salmon/orange/cashew/kiwi/beef/walnut/sesame/salmon2/mackerel/soy/chicken/banana/pork/matsutake/peach/yam/apple/gelatin/almond から該当するもののみ"],'
-            +'"dietFlags":["meat/fish/dairy/egg/gluten から該当するもののみ"],'
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:4096,
+          messages:[{role:'user',content:'以下の食材について、単位換算をJSONのみで回答してください（説明不要・コードブロック不要）。必ず全件回答してください。\n'
+            +'形式: [{"name":"食材名",'
             +'"unitConversions":[{"unit":"大さじ","amount":数値},{"unit":"小さじ","amount":数値}等 ※基本単位1あたりのg換算値。大さじ・小さじ・カップ・cc・ml・個・本など使いそうな単位のみ]}]\n'
             +'食材一覧: '+names}]
         })
@@ -5783,15 +5764,6 @@ async function fetchNutritionForAll(){
       list.forEach(function(item){
         var ing=DB.ingredients.find(function(i){return i.name===item.name;});
         if(ing){
-          ing.kcal=item.kcal||0; ing.protein=item.protein||0;
-          ing.fat=item.fat||0; ing.carbs=item.carbs||0; ing.salt=item.salt||0;
-          // アレルゲン・食事制限区分も保存（既存データがない場合のみ）
-          if(item.allergens&&item.allergens.length&&(!ing.allergens||!ing.allergens.length)){
-            ing.allergens=item.allergens;
-          }
-          if(item.dietFlags&&item.dietFlags.length&&(!ing.dietFlags||!ing.dietFlags.length)){
-            ing.dietFlags=item.dietFlags;
-          }
           if(item.unitConversions&&item.unitConversions.length&&(!ing.unitConversions||!ing.unitConversions.length)){
             ing.unitConversions=item.unitConversions;
           }
@@ -5861,8 +5833,8 @@ create table courses (id text primary key, name text, "courseCategory" text, des
       <div id="settings-result" style="margin-top:14px">${document.getElementById('settings-result')?document.getElementById('settings-result').innerHTML:''}</div>
       <div style="margin-top:20px;padding:14px;background:var(--bg2);border-radius:8px">
         <div style="font-weight:600;margin-bottom:8px">🤖 食材情報をAIで一括取得</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">栄養素・アレルゲン・食事制限区分・単位換算テーブルをまとめて自動入力します（未登録のみ）</div>
-        <button class="btn btn-primary" onclick="fetchNutritionForAll()">🤖 食材情報を一括取得（栄養素・アレルゲン・単位換算）</button>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">単位換算テーブルを自動入力します（未登録のみ）</div>
+        <button class="btn btn-primary" onclick="fetchNutritionForAll()">🤖 単位換算を一括取得</button>
         <div id="nutrition-fetch-result" style="margin-top:8px"></div>
       </div>
     </div>
