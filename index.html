@@ -287,6 +287,7 @@ Tv/g6IoqCgK8/hHx8+6rl+9v98C1wpjIj++IQ4ZosNxwr6es9mM6ro+KIrB7U8iMn0CdsOpYIyy71tug
     <div class="nav-item" onclick="showPage('courses')"><span class="icon">🍽️</span> コース管理</div>
     <div class="nav-section">コスト管理</div>
     <div class="nav-item" onclick="showPage('ingredients')"><span class="icon">🥬</span> 食材・単価管理</div>
+    <div class="nav-item" onclick="showPage('price-compare')"><span class="icon">🏷️</span> 仕入れ価格比較</div>
     <div class="nav-item" onclick="showPage('inventory')" style="display:none"><span class="icon">📦</span> 棚卸し</div>
     <div class="nav-section">ツール</div>
     <div class="nav-item" onclick="showPage('import')"><span class="icon">📥</span> レシピ取り込み</div>
@@ -959,7 +960,7 @@ function showPage(page) {
   });
   const titles = {dashboard:'ダッシュボード',recipes:'レシピ管理',favorites:'お気に入りレシピ',courses:'コース管理',ingredients:'食材・単価管理',inventory:'棚卸し','bulk-price':'単価一括登録',import:'レシピ取り込み',settings:'設定・クラウド連携'};
   document.getElementById('page-title').textContent = titles[page]||page;
-  const renderers = {dashboard:renderDashboard,recipes:renderRecipes,favorites:renderFavorites,courses:renderCourses,ingredients:renderIngredients,inventory:renderInventory,'bulk-price':renderBulkPrice,import:renderImport,settings:renderSettings};
+  const renderers = {dashboard:renderDashboard,recipes:renderRecipes,favorites:renderFavorites,courses:renderCourses,ingredients:renderIngredients,inventory:renderInventory,'bulk-price':renderBulkPrice,'price-compare':renderPriceCompare,import:renderImport,settings:renderSettings};
   if (renderers[page]) renderers[page]();
   if (window.innerWidth<=820) {
     document.getElementById('sidebar').classList.remove('open','sidebar-open');
@@ -5783,6 +5784,154 @@ async function fetchNutritionForAll(){
     else
       el.innerHTML='<div style="padding:8px;background:#d4edda;border-radius:6px;font-size:12px;color:#1e7e34">✅ '+updated+'件の食材の栄養素を取得しました！クラウドへ保存を忘れずに。</div>';
   }
+}
+
+// ========== PRICE COMPARE ==========
+var _priceData = []; // Supabaseから取得したキャッシュ
+
+async function renderPriceCompare(){
+  document.getElementById('page-title').textContent='仕入れ価格比較';
+  var el=document.getElementById('content');
+  el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted)">⏳ 読み込み中...</div>';
+  // Supabaseから取得
+  if(useCloud&&sbClient){
+    var res=await sbClient.from('ingredient_prices').select('*').order('ingredient_name').order('price');
+    _priceData=res.data||[];
+  }
+  _renderPriceComparePage();
+}
+
+function _renderPriceComparePage(query){
+  var el=document.getElementById('content');
+  var q=(query||'').trim().toLowerCase();
+  // 絞り込み
+  var filtered=q?_priceData.filter(function(p){
+    return p.ingredient_name.toLowerCase().includes(q)||p.supplier_name.toLowerCase().includes(q);
+  }):_priceData;
+  // 食材名でグループ化
+  var groups={};
+  filtered.forEach(function(p){
+    if(!groups[p.ingredient_name]) groups[p.ingredient_name]=[];
+    groups[p.ingredient_name].push(p);
+  });
+  var names=Object.keys(groups).sort();
+
+  var listHtml=names.length===0
+    ?'<div style="text-align:center;padding:40px;color:var(--text-muted)">'+(q?'「'+query+'」は見つかりません':'まだ登録がありません')+'</div>'
+    :names.map(function(name){
+      var items=groups[name];
+      // 最安値を強調
+      var minPrice=Math.min.apply(null,items.map(function(p){return p.price;}));
+      var rows=items.map(function(p){
+        var isCheapest=p.price===minPrice&&items.length>1;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">'
+          +'<div style="flex:1">'
+          +'<span style="font-size:14px;color:var(--text)">'+p.supplier_name+'</span>'
+          +(p.note?'<span style="font-size:11px;color:var(--text-muted);margin-left:6px">'+p.note+'</span>':'')
+          +'</div>'
+          +'<div style="display:flex;align-items:center;gap:10px">'
+          +(isCheapest?'<span style="font-size:10px;background:#e8f5e9;color:#2e7d32;padding:1px 6px;border-radius:8px;font-weight:600">最安</span>':'')
+          +'<span style="font-size:16px;font-weight:700;color:'+(isCheapest?'var(--accent-dark)':'var(--text)')+'">¥'+p.price.toLocaleString()+'<span style="font-size:11px;font-weight:400;color:var(--text-muted)"> /'+p.unit+'</span></span>'
+          +'<button onclick="editPriceEntry(\''+p.id+'\')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--greige);padding:4px">✏️</button>'
+          +'</div>'
+          +'</div>';
+      }).join('');
+      return '<div class="card" style="margin-bottom:12px;padding:0;overflow:hidden">'
+        +'<div style="padding:12px 14px;background:var(--bg2);font-family:\'Noto Serif JP\',serif;font-size:15px;font-weight:600;display:flex;justify-content:space-between;align-items:center">'
+        +'<span>'+name+'</span>'
+        +'<button onclick="addPriceEntry(\''+name+'\')" style="font-size:11px;padding:3px 10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">＋ 業者追加</button>'
+        +'</div>'
+        +rows
+        +'</div>';
+    }).join('');
+
+  el.innerHTML=''
+    +'<div style="position:sticky;top:0;background:var(--bg);padding:0 0 12px 0;z-index:10">'
+    +'<div style="display:flex;gap:8px">'
+    +'<input type="search" id="pc-search" placeholder="食材名・業者名で検索..." value="'+(query||'')+'" oninput="_renderPriceComparePage(this.value)" style="flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:16px;background:var(--white)">'
+    +'<button onclick="addPriceEntry()" class="btn btn-primary" style="white-space:nowrap">＋ 追加</button>'
+    +'</div>'
+    +'</div>'
+    +'<div id="pc-list">'+listHtml+'</div>';
+}
+
+function addPriceEntry(ingredientName){
+  var modalEl=document.getElementById('modal');
+  modalEl.style.display='flex';
+  document.getElementById('modal-body').innerHTML=''
+    +'<div class="modal-header"><div class="modal-title">価格を登録</div><button class="modal-close" onclick="closeModal()">✕</button></div>'
+    +'<div class="modal-content">'
+    +'<div class="form-group"><label>食材名 *</label>'
+    +'<input type="text" id="pe-name" value="'+(ingredientName||'')+'" placeholder="例: 島豚バラ肉" list="pe-name-list" autocomplete="off">'
+    +'<datalist id="pe-name-list">'+_priceData.map(function(p){return p.ingredient_name;}).filter(function(v,i,a){return a.indexOf(v)===i;}).map(function(n){return '<option value="'+n+'">';}).join('')+'</datalist>'
+    +'</div>'
+    +'<div class="form-group"><label>業者名 *</label>'
+    +'<input type="text" id="pe-supplier" placeholder="例: Aプライス" list="pe-supplier-list" autocomplete="off">'
+    +'<datalist id="pe-supplier-list">'+_priceData.map(function(p){return p.supplier_name;}).filter(function(v,i,a){return a.indexOf(v)===i;}).map(function(n){return '<option value="'+n+'">';}).join('')+'</datalist>'
+    +'</div>'
+    +'<div class="form-grid">'
+    +'<div class="form-group"><label>価格（円） *</label><input type="number" id="pe-price" placeholder="例: 980" min="0" step="1"></div>'
+    +'<div class="form-group"><label>単位 *</label><input type="text" id="pe-unit" placeholder="例: kg / 個 / 袋" list="pe-unit-list"><datalist id="pe-unit-list"><option value="kg"><option value="g"><option value="個"><option value="袋"><option value="本"><option value="パック"><option value="枚"><option value="丁"></datalist></div>'
+    +'</div>'
+    +'<div class="form-group"><label>メモ</label><input type="text" id="pe-note" placeholder="例: 500g入り・税込"></div>'
+    +'</div>'
+    +'<div class="modal-footer">'
+    +'<button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>'
+    +'<button class="btn btn-primary" onclick="savePriceEntry()">💾 保存</button>'
+    +'</div>';
+}
+
+function editPriceEntry(id){
+  var p=_priceData.find(function(x){return x.id===id;});
+  if(!p) return;
+  var modalEl=document.getElementById('modal');
+  modalEl.style.display='flex';
+  document.getElementById('modal-body').innerHTML=''
+    +'<div class="modal-header"><div class="modal-title">価格を編集</div><button class="modal-close" onclick="closeModal()">✕</button></div>'
+    +'<div class="modal-content">'
+    +'<div class="form-group"><label>食材名 *</label><input type="text" id="pe-name" value="'+p.ingredient_name+'"></div>'
+    +'<div class="form-group"><label>業者名 *</label><input type="text" id="pe-supplier" value="'+p.supplier_name+'"></div>'
+    +'<div class="form-grid">'
+    +'<div class="form-group"><label>価格（円） *</label><input type="number" id="pe-price" value="'+p.price+'" min="0" step="1"></div>'
+    +'<div class="form-group"><label>単位 *</label><input type="text" id="pe-unit" value="'+p.unit+'"></div>'
+    +'</div>'
+    +'<div class="form-group"><label>メモ</label><input type="text" id="pe-note" value="'+(p.note||'')+'"></div>'
+    +'</div>'
+    +'<div class="modal-footer">'
+    +'<button class="btn btn-danger btn-sm" onclick="deletePriceEntry(\''+id+'\')">🗑 削除</button>'
+    +'<button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>'
+    +'<button class="btn btn-primary" onclick="savePriceEntry(\''+id+'\')">💾 保存</button>'
+    +'</div>';
+}
+
+async function savePriceEntry(id){
+  var name=document.getElementById('pe-name').value.trim();
+  var supplier=document.getElementById('pe-supplier').value.trim();
+  var price=parseFloat(document.getElementById('pe-price').value);
+  var unit=document.getElementById('pe-unit').value.trim();
+  var note=document.getElementById('pe-note').value.trim();
+  if(!name||!supplier||isNaN(price)||!unit){alert('食材名・業者名・価格・単位は必須です');return;}
+  var data={id:id||genId(),ingredient_name:name,supplier_name:supplier,price:price,unit:unit,note:note||null,updated_at:new Date().toISOString()};
+  if(useCloud&&sbClient){
+    var res=await sbClient.from('ingredient_prices').upsert(data);
+    if(res.error){alert('保存エラー: '+res.error.message);return;}
+  }
+  // ローカルキャッシュ更新
+  var idx=_priceData.findIndex(function(p){return p.id===data.id;});
+  if(idx>=0) _priceData[idx]=data; else _priceData.push(data);
+  closeModal();
+  var q=document.getElementById('pc-search')?.value||'';
+  _renderPriceComparePage(q);
+}
+
+async function deletePriceEntry(id){
+  if(!confirm('削除しますか？')) return;
+  if(useCloud&&sbClient){
+    await sbClient.from('ingredient_prices').delete().eq('id',id);
+  }
+  _priceData=_priceData.filter(function(p){return p.id!==id;});
+  closeModal();
+  _renderPriceComparePage('');
 }
 
 // ========== SETTINGS ==========
