@@ -116,6 +116,32 @@
   .tab:hover{color:var(--text)}
   .tab.active{color:var(--accent-dark);border-bottom-color:var(--accent);font-weight:600}
 
+  /* CHEF CHAT */
+  #chef-chat-wrap{display:flex;flex-direction:column;height:calc(100vh - 120px);max-width:780px;margin:0 auto}
+  #chef-messages{flex:1;overflow-y:auto;padding:12px 0;display:flex;flex-direction:column;gap:14px}
+  .chef-msg{display:flex;gap:10px;align-items:flex-start}
+  .chef-msg.user{flex-direction:row-reverse}
+  .chef-avatar{width:34px;height:34px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:white}
+  .chef-msg.user .chef-avatar{background:var(--gold)}
+  .chef-bubble{max-width:75%;padding:12px 16px;border-radius:14px;font-size:13.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+  .chef-msg.assistant .chef-bubble{background:var(--white);border:1px solid var(--border);border-top-left-radius:4px}
+  .chef-msg.user .chef-bubble{background:var(--accent);color:white;border-top-right-radius:4px}
+  #chef-input-area{display:flex;gap:10px;padding:14px 0 0;border-top:1px solid var(--border);align-items:flex-end}
+  #chef-input{flex:1;padding:12px 14px;border:1px solid var(--border);border-radius:10px;font-family:'Noto Sans JP',sans-serif;font-size:14px;resize:none;min-height:48px;max-height:160px;outline:none;background:var(--white);color:var(--text);line-height:1.5}
+  #chef-input:focus{border-color:var(--accent)}
+  #chef-send-btn{padding:12px 18px;background:var(--accent);color:white;border:none;border-radius:10px;cursor:pointer;font-size:14px;flex-shrink:0;transition:background .2s}
+  #chef-send-btn:hover{background:var(--accent-dark)}
+  #chef-send-btn:disabled{background:var(--greige);cursor:not-allowed}
+  .chef-context-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:var(--bg2);border-radius:8px;font-size:11px;color:var(--text-light);align-items:center}
+  .chef-ctx-badge{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:3px 10px;font-size:11px;color:var(--text-muted)}
+  .chef-clear-btn{margin-left:auto;padding:4px 12px;background:transparent;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;color:var(--text-muted)}
+  .chef-clear-btn:hover{background:var(--bg3)}
+  .chef-typing{display:flex;gap:4px;align-items:center;padding:10px 14px}
+  .chef-typing span{width:7px;height:7px;border-radius:50%;background:var(--greige);animation:chefDot 1.2s infinite}
+  .chef-typing span:nth-child(2){animation-delay:.2s}
+  .chef-typing span:nth-child(3){animation-delay:.4s}
+  @keyframes chefDot{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
   /* MODALS */
   .modal-overlay{position:fixed;inset:0;background:rgba(61,56,48,.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
   .modal{background:var(--white);border-radius:16px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
@@ -285,6 +311,7 @@ Tv/g6IoqCgK8/hHx8+6rl+9v98C1wpjIj++IQ4ZosNxwr6es9mM6ro+KIrB7U8iMn0CdsOpYIyy71tug
     <div class="nav-item" onclick="showPage('recipes')"><span class="icon">📖</span> レシピ管理</div>
     <div class="nav-item" onclick="showPage('favorites')"><span class="icon">❤️</span> お気に入り</div>
     <div class="nav-item" onclick="showPage('courses')"><span class="icon">🍽️</span> コース管理</div>
+    <div class="nav-item" onclick="showPage('chef')"><span class="icon">👨‍🍳</span> Chefに相談</div>
     <div class="nav-section">コスト管理</div>
     <div class="nav-item" onclick="showPage('ingredients')"><span class="icon">🥬</span> 食材・単価管理</div>
     <div class="nav-item" onclick="showPage('price-compare')"><span class="icon">🏷️</span> 仕入れ価格比較</div>
@@ -625,6 +652,10 @@ const ALLERGENS = [
 ];
 
 // ========== SUPABASE ==========
+// 全端末共通のクラウド接続情報（anonキーは公開キー＝RLS保護済み）
+// これにより新しい端末（iPhone等）でも手入力なしで自動的にクラウドのデータが出る
+var DEFAULT_SUPABASE_URL = 'https://mtsdhheqddrckksiqlim.supabase.co';
+var DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im10c2RoaGVxZGRyY2trc2lxbGltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI1OTc5NDgsImV4cCI6MjA4ODE3Mzk0OH0.c18ExSxNHBOani7CN4QAqaerhvpr5ZCYA0GGkUg0mlc';
 var sbClient = null;
 var useCloud = false;
 
@@ -649,7 +680,7 @@ function updateCloudStatus(state, label) {
 }
 
 // ========== DATA STORE ==========
-var DB = { ingredients:[], recipes:[], courses:[], inventory:[], settings:{targetCostRatio:35, supabaseUrl:'', supabaseKey:''} };
+var DB = { ingredients:[], recipes:[], courses:[], inventory:[], settings:{targetCostRatio:35, supabaseUrl:DEFAULT_SUPABASE_URL, supabaseKey:DEFAULT_SUPABASE_KEY} };
 
 
 // ========== 検索ユーティリティ ==========
@@ -714,6 +745,9 @@ function loadLocal() {
       DB = { ...DB, ...parsed };
       ['ingredients','recipes','courses','inventory'].forEach(k => { if (!Array.isArray(DB[k])) DB[k] = []; });
       if (!DB.settings) DB.settings = {};
+      // 既存端末で接続情報が空のまま保存されていても共通の初期値で補完する
+      if (!DB.settings.supabaseUrl) DB.settings.supabaseUrl = DEFAULT_SUPABASE_URL;
+      if (!DB.settings.supabaseKey) DB.settings.supabaseKey = DEFAULT_SUPABASE_KEY;
     }
   } catch(e) {}
 }
@@ -958,9 +992,9 @@ function showPage(page) {
     var fn = el.getAttribute('onclick')||'';
     if(fn.includes("'"+page+"'") || fn.includes('"'+page+'"')) el.classList.add('active');
   });
-  const titles = {dashboard:'ダッシュボード',recipes:'レシピ管理',favorites:'お気に入りレシピ',courses:'コース管理',ingredients:'食材・単価管理',inventory:'棚卸し','bulk-price':'単価一括登録',import:'レシピ取り込み',settings:'設定・クラウド連携'};
+  const titles = {dashboard:'ダッシュボード',recipes:'レシピ管理',favorites:'お気に入りレシピ',courses:'コース管理',chef:'Chefに相談',ingredients:'食材・単価管理',inventory:'棚卸し','bulk-price':'単価一括登録',import:'レシピ取り込み',settings:'設定・クラウド連携'};
   document.getElementById('page-title').textContent = titles[page]||page;
-  const renderers = {dashboard:renderDashboard,recipes:renderRecipes,favorites:renderFavorites,courses:renderCourses,ingredients:renderIngredients,inventory:renderInventory,'bulk-price':renderBulkPrice,'price-compare':renderPriceCompare,import:renderImport,settings:renderSettings};
+  const renderers = {dashboard:renderDashboard,recipes:renderRecipes,favorites:renderFavorites,courses:renderCourses,chef:renderChef,ingredients:renderIngredients,inventory:renderInventory,'bulk-price':renderBulkPrice,'price-compare':renderPriceCompare,import:renderImport,settings:renderSettings};
   if (renderers[page]) renderers[page]();
   if (window.innerWidth<=820) {
     document.getElementById('sidebar').classList.remove('open','sidebar-open');
@@ -6669,6 +6703,184 @@ function _initApp(){
     }
   }
 }
+// ========== CHEF CHAT ==========
+var chefHistory = [];
+
+function buildChefSystemPrompt() {
+  var recipeList = (DB.recipes||[]).map(function(r){
+    return '・' + r.name + (r.category ? '（'+r.category+'）' : '') + (r.season ? ' ／季節:'+r.season : '');
+  }).join('\n');
+
+  var courseList = (DB.courses||[]).map(function(c){
+    var items = (c.items||[]).map(function(it){ return it.name||it; }).join('、');
+    return '・' + c.name + (c.season ? '（'+c.season+'）' : '') + (items ? '\n  構成: ' + items : '');
+  }).join('\n');
+
+  return `あなたはWASSA WASSA（沖縄・大宜味村）のやんばるシェフAIです。
+Yuji（祐次）は洋食、Risa（理佐）は和食のプロ料理人。ともに東京・築地市場で修業。
+辺土名漁港から直接仕入れた新鮮な魚介と、やんばるの旬の島野菜を使った料理が得意。
+Googleクチコミ4.8。「沖縄で一番美味しいごはん」と言われる宿。
+
+【WASSAの食のコンセプト】
+「ぬちぐすい（命の薬）」─ 食べることが体を癒し、命を養う。
+やんばるの旬の食材、島野菜、地元の海産物を使い、シンプルで温かく、でも驚きのある料理を目指す。
+化学調味料に頼らず、食材そのものの味を活かす。
+
+【夕食コース（現行）】
+- アグー豚のグリルコース：¥6,600/人
+- 海の幸と旬の素材コース：¥8,800/人
+- サンセットグリルコース：¥8,800/人（5〜10月限定）
+- おまかせコース：¥7,700/人（リピーター様限定）
+- 朝食：¥2,200/人
+
+【登録レシピ一覧】
+${recipeList || '（未登録）'}
+
+【登録コース一覧】
+${courseList || '（未登録）'}
+
+【応答スタイル】
+- 料理人同士が話すようなフランクさで。堅い提案書スタイルはNG
+- 料理の提案は具体的に（食材・調理法・盛り付けの雰囲気まで）
+- 旬・季節感を必ず意識する
+- 絵文字は使わない
+- リピーター向けコース開発の相談には、過去コースと被らないことを意識する
+- 具体的な料理名・素材名を積極的に出す`;
+}
+
+function renderChef() {
+  var content = document.getElementById('content');
+  if (!content) return;
+
+  var recipeCount = (DB.recipes||[]).length;
+  var courseCount = (DB.courses||[]).length;
+
+  content.innerHTML = `
+    <div id="chef-chat-wrap">
+      <div class="chef-context-bar">
+        <span>読み込み済み：</span>
+        <span class="chef-ctx-badge">レシピ ${recipeCount}件</span>
+        <span class="chef-ctx-badge">コース ${courseCount}件</span>
+        <button class="chef-clear-btn" onclick="chefClearHistory()">会話をクリア</button>
+      </div>
+      <div id="chef-messages"></div>
+      <div id="chef-input-area">
+        <textarea id="chef-input" placeholder="例：2027年リピーター向け夏コースを一緒に考えたい。昨年と被らないようにしたい。" rows="2"></textarea>
+        <button id="chef-send-btn" onclick="chefSend()">送信</button>
+      </div>
+    </div>`;
+
+  var input = document.getElementById('chef-input');
+  if (input) {
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chefSend(); }
+    });
+    input.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+    });
+  }
+
+  chefRenderMessages();
+  if (chefHistory.length === 0) chefAddWelcome();
+}
+
+function chefAddWelcome() {
+  chefHistory.push({role:'assistant', content:'こんにちは。コース開発の相談、何でも聞いてください。\n\n例えば：\n・「2027年のリピーター向け夏コース（夕食）を考えたい」\n・「朝食の新コース案がほしい。シーズンは秋冬」\n・「アグー豚を使わない夏のコースを考えて」\n\nどんな相談でも、具体的な料理名まで一緒に考えます。'});
+  chefRenderMessages();
+}
+
+function chefRenderMessages() {
+  var el = document.getElementById('chef-messages');
+  if (!el) return;
+  el.innerHTML = chefHistory.map(function(m) {
+    var isUser = m.role === 'user';
+    return '<div class="chef-msg ' + m.role + '">'
+      + '<div class="chef-avatar">' + (isUser ? 'R' : '👨‍🍳') + '</div>'
+      + '<div class="chef-bubble">' + escapeHtml(m.content) + '</div>'
+      + '</div>';
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function chefShowTyping() {
+  var el = document.getElementById('chef-messages');
+  if (!el) return;
+  var div = document.createElement('div');
+  div.id = 'chef-typing-indicator';
+  div.className = 'chef-msg assistant';
+  div.innerHTML = '<div class="chef-avatar">👨‍🍳</div><div class="chef-bubble chef-typing"><span></span><span></span><span></span></div>';
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function chefHideTyping() {
+  var el = document.getElementById('chef-typing-indicator');
+  if (el) el.remove();
+}
+
+async function chefSend() {
+  var input = document.getElementById('chef-input');
+  var btn = document.getElementById('chef-send-btn');
+  if (!input || !btn) return;
+  var text = input.value.trim();
+  if (!text) return;
+
+  var apiKey = DB.settings && DB.settings.anthropicKey;
+  if (!apiKey) {
+    alert('設定ページでAnthropicのAPIキーを入力してください。');
+    return;
+  }
+
+  input.value = '';
+  input.style.height = 'auto';
+  btn.disabled = true;
+
+  chefHistory.push({role:'user', content:text});
+  chefRenderMessages();
+  chefShowTyping();
+
+  try {
+    var messages = chefHistory.map(function(m) { return {role:m.role, content:m.content}; });
+    var res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        system: buildChefSystemPrompt(),
+        messages: messages
+      })
+    });
+    var data = await res.json();
+    var reply = (data.content && data.content[0] && data.content[0].text) || 'エラーが発生しました。';
+    chefHideTyping();
+    chefHistory.push({role:'assistant', content:reply});
+    chefRenderMessages();
+  } catch(e) {
+    chefHideTyping();
+    chefHistory.push({role:'assistant', content:'エラーが発生しました: ' + e.message});
+    chefRenderMessages();
+  }
+
+  btn.disabled = false;
+  if (input) input.focus();
+}
+
+function chefClearHistory() {
+  chefHistory = [];
+  chefAddWelcome();
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // DOMが準備できてから起動
 if(document.readyState === 'loading'){
   document.addEventListener('DOMContentLoaded', _startApp);
