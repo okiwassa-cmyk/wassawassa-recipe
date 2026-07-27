@@ -4111,7 +4111,7 @@ async function fetchUnitConversions(){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey,
         'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,
+      body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:1000,
         messages:[{role:'user',content:'「'+name+'」の単位換算を教えてください。基本単位は「'+unit+'」です。'
           +'以下の形式でJSONのみ回答してください（説明不要、コードブロック不要）。'
           +'形式: [{"unit":"大さじ","amount":15},{"unit":"小さじ","amount":5}]'
@@ -5152,7 +5152,7 @@ async function importFromPhoto(input){
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':DB.settings.anthropicKey,
         'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4096,
+      body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:4096,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:'image/jpeg',data:b64}},
           ({type:'text',text:'この料理レシピ画像から情報を抽出し、必ず日本語でJSONのみで回答してください（説明文・マークダウン不要）。amountは数値のみ、unitは単位文字列のみで分けてください。categoryは必ず次のリストから最も近いものを1つ選んでください: '+RECIPE_CATEGORIES().join('・')+'。tagsには料理の国・地域（例:タイ、イタリア、沖縄など）や特徴を配列で入れてください。形式: {"name":"料理名","description":"説明","servings":4,"category":"カテゴリ","tags":["国名"],"ingredients":[{"name":"食材名","amount":150,"unit":"g"}],"steps":["手順1"],"notes":"メモ"}。ingredientsにセクション区切り行を入れる場合は{\"_isSection\":true,\"_sectionLabel\":\"【セクション名】\"}の形式を使ってください'})
@@ -5252,7 +5252,7 @@ async function parseRecipeWithAI(text){
         'anthropic-version':'2023-06-01',
         'anthropic-dangerous-direct-browser-access':'true'
       },
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8192,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:8192,messages:[{role:'user',content:prompt}]})
     });
     var data=await resp.json();
     if(data.error){
